@@ -1502,3 +1502,207 @@ When QGIS 4.2 LTR ships, run these steps:
 ---
 
 *Bhumi3DMapper — Autonomous Development Prompt v1.0 · March 2026 · QGIS 3.44 LTR · Qt5/Qt6 dual-compatible*
+
+---
+
+## v2.0 Development Plan — Mineral Discovery as Primary Objective
+
+> **Detailed Job Cards:** See `Bhumi3DMapper_JobCards_v2.md` for the full 22-card sequenced development plan with exact line numbers, acceptance criteria, and dependency graph.  
+> **Summary below. The job cards file is the authoritative source.**
+
+> **Lead:** Satya  
+> **Date:** 2026-04-17  
+> **Status:** Draft for Team Review  
+> **Review required by:** Full AiRE Team
+
+### Executive Summary
+
+Bhumi3DMapper v1.0.0 is a working QGIS plugin with 53 passing tests, covering the full pipeline from data loading to scored GeoPackage output. However, the code review reveals **4 critical issues** that directly compromise mineral discovery accuracy, **6 high-priority issues** that limit the tool to Kayad-only use, and several medium-priority improvements needed for production readiness.
+
+**The biggest risk to mineral discovery:** The scoring engine and drill processor contain Kayad-specific hardcoded values throughout. Any user running this on a different deposit will get silently wrong results. The drill hole desurvey is missing entirely, meaning all subsurface geology is vertically projected from collar — potentially hundreds of meters off at depth.
+
+### Current State Assessment
+
+| Area | Status | Verdict |
+|------|--------|---------|
+| Plugin skeleton & QGIS integration | Complete | Working |
+| Config system (JSON roundtrip) | Complete | Good, but defaults are Kayad-specific |
+| Scoring engine (13 criteria) | Complete | **Has bugs + hardcoded thresholds** |
+| Data loader | Complete | **PIL instead of GDAL; no spatial validation** |
+| Drill processor | Complete | **No desurvey; hardcoded rock codes** |
+| Geophysics processor | Complete | Minor issues |
+| GPKG writer | Complete | Slow; no spatial index |
+| Voxel builder | Complete | **Zero tests** |
+| UI (dock, config, wizard) | Complete | **Import bugs; blocking UI; incomplete config editing** |
+| Test suite (53 tests) | Passing | Significant gaps in regime/assay/voxel coverage |
+
+### Phase 1 — Critical Fixes (Mineral Discovery Accuracy)
+
+These issues directly produce **wrong prospectivity maps**. Must be fixed before any field use.
+
+#### JC-1.1: Implement Drill Hole Desurvey
+- **File:** `modules/m02_drill_processor.py`
+- **Problem:** Survey data is loaded by `m01_data_loader.py` but **never used**. All subsurface positions are computed as `z_collar - from_depth` (vertical projection). For deviated holes, the actual XYZ position depends on azimuth and dip. At 500m depth with 10° deviation, geology is assigned ~87m from its true position.
+- **Fix:** Implement minimum-curvature desurvey using survey (BHID, DEPTH, AZI, DIP). Compute true XYZ for each interval midpoint. Update `geology_at_level()` to use desurveyed coordinates.
+- **Impact:** HIGH — affects every criterion that depends on spatial position of drill data (C1 lithology, C2 PG halo, C3 CSR standoff, C9 grade model)
+- **Effort:** 3–5 days
+- **Tests needed:** Desurvey of known vertical hole (identity), 45° hole, S-curved hole
+
+#### JC-1.2: Fix Gravity Gradient Scoring Dead Code
+- **File:** `modules/m04_scoring_engine.py`, `score_gravity_gradient()`
+- **Problem:** Conditions evaluated in wrong order. The `grav_grad > g80` branch catches everything above the 80th percentile, making `grav_grad > g90` **unreachable dead code**. Cells with very high gradient score 0.55 instead of intended 0.35.
+- **Fix:** Reorder conditions: check g90 before g80, or use `elif` chain from highest to lowest.
+- **Impact:** MEDIUM-HIGH — inflates blind model scores in high-gradient zones
+- **Effort:** 1 hour
+- **Tests needed:** Add test with values above g90; verify correct score (0.35)
+
+#### JC-1.3: Fix Ore Polygon Area Calculation
+- **File:** `modules/m01_data_loader.py`, line ~150
+- **Problem:** `'area': len(xs) * 25` counts vertices × 25 sq.m. Not a valid area calculation. Corrupts ore-envelope equivalent radius in C10 scoring.
+- **Fix:** Implement Shoelace formula or use `shapely.Polygon.area`.
+- **Impact:** HIGH — directly affects ore_envelope proximity scoring (C10) and novelty classification
+- **Effort:** 2 hours
+- **Tests needed:** Known polygon area (rectangle, triangle, irregular)
+
+#### JC-1.4: Replace PIL with Rasterio/GDAL for TIF Loading
+- **File:** `modules/m01_data_loader.py`
+- **Problem:** PIL/Pillow has **no CRS awareness, no geotransform, no nodata handling**. If a gravity TIF has a different origin or pixel size, values are silently assigned to wrong grid cells.
+- **Fix:** Replace `Image.open()` with `rasterio.open()`. Read CRS, transform, nodata. Validate against `ProjectConfig.grid`. Resample if needed.
+- **Impact:** HIGH — spatial misregistration invalidates C4 (gravity), C5 (magnetics), C7b/C8 (gradients), C9 (Laplacian)
+- **Effort:** 2–3 days
+- **Tests needed:** TIF with known geotransform; mismatched CRS detection; nodata handling
+- **Note:** Adds `rasterio` dependency (usually available in QGIS Python)
+
+### Phase 2 — Deposit-Agnostic Generalisation
+
+These issues mean the plugin **only works correctly for Kayad**. Fixing them enables mineral discovery at any deposit.
+
+#### JC-2.1: Move All Hardcoded Thresholds to Config
+- **Files:** `m04_scoring_engine.py`, `m02_drill_processor.py`, `m05_gpkg_writer.py`
+- **Problem:** PG halo distances, CSR standoff distances, gravity/magnetic thresholds, plunge proximity distances, structural/footwall rock codes, litho score tables, regime/class name dicts — all hardcoded to Kayad.
+- **Fix:** Add `ScoringThresholds` dataclass to `core/config.py`. Kayad values become the default preset.
+- **Impact:** HIGH — without this, any non-Kayad project gets meaningless scores
+- **Effort:** 3–4 days
+- **Tests needed:** Scoring with non-default thresholds; config roundtrip with custom thresholds
+
+#### JC-2.2: Config Preset System (Deposit Templates)
+- **File:** `core/config.py` (new: `core/presets/`)
+- **Fix:** Create preset configs for: **SEDEX Pb-Zn** (current), **VMS Cu-Zn**, **Epithermal Au**, **Porphyry Cu-Mo**
+- **Impact:** HIGH — makes the tool usable for the deposits that matter most for discovery
+- **Effort:** 5–7 days (requires geological input per deposit type)
+
+#### JC-2.3: Complete Config Widget for All Geological Parameters
+- **File:** `ui/config_widget.py`
+- **Fix:** Add tabbed config editor: Project & Grid | Deposit Type & Lithology | Scoring Weights (sliders) | Structural Corridors (map picker) | Depth Regimes
+- **Impact:** MEDIUM-HIGH — without this, only expert users can configure for new deposits
+- **Effort:** 5–7 days
+
+#### JC-2.4: Fix Import Bugs in UI Files
+- **Files:** `ui/dock_panel.py` (lines 141, 156, 207), `ui/wizard.py` (lines 83–88, 122–125, 136–139, 224–227)
+- **Fix:** Change `from .core.config` → `from ..core.config` in dock_panel; replace `sys.path` hacking with relative imports in wizard.
+- **Impact:** HIGH — plugin UI crashes on use
+- **Effort:** 1 hour
+
+### Phase 3 — Production Hardening
+
+#### JC-3.1: Non-blocking UI with QgsTask
+- **Files:** `ui/wizard.py`, `ui/dock_panel.py`, `algorithms/alg_run_scoring.py`
+- **Fix:** Wrap computation in `QgsTask` subclass with progress bar and cancellation.
+- **Effort:** 3–4 days
+
+#### JC-3.2: GPKG Performance — Batch Writing + Spatial Index
+- **File:** `modules/m05_gpkg_writer.py`
+- **Fix:** Vectorise with numpy, use `executemany()`, add RTree spatial index.
+- **Effort:** 2–3 days
+
+#### JC-3.3: Deduplicate Scoring Pipeline
+- **Files:** `algorithms/alg_run_scoring.py`, `modules/m06_voxel_builder.py`
+- **Fix:** Extract shared `compute_level()` function.
+- **Effort:** 1–2 days
+
+#### JC-3.4: Proper Nodata Handling and Warning System
+- **Files:** `m01_data_loader.py`, `m03_geophys_processor.py`
+- **Fix:** Remove global warning suppression. Use `np.nan` consistently. Add data quality report.
+- **Effort:** 2 days
+
+#### JC-3.5: Fix Config z_levels Float Boundary Issue
+- **File:** `core/config.py`
+- **Fix:** Replace `np.arange` with `np.linspace` or integer-step approach.
+- **Effort:** 1 hour
+
+### Phase 4 — Test Coverage for Discovery Confidence
+
+#### JC-4.1: Add Regime Transition Tests
+- Test regime 0 (deep) and regime 1 (transition with 30% confidence discount).
+- **Effort:** 2–3 days
+
+#### JC-4.2: Add Voxel Builder Tests
+- `m06_voxel_builder.py` has zero tests.
+- **Effort:** 2–3 days
+
+#### JC-4.3: Fix _classify_rock_code Phantom Test
+- `test_data_loader.py` calls `loader._classify_rock_code()` which doesn't exist.
+- **Effort:** 1 hour
+
+#### JC-4.4: Add Golden-File Regression Tests
+- Create reference dataset with pre-computed expected scores. Assert exact match.
+- **Effort:** 2–3 days
+
+#### JC-4.5: Add Boundary Value and NaN Input Tests
+- NaN, inf, zero-length arrays, exact threshold boundaries.
+- **Effort:** 1–2 days
+
+### Phase 5 — Feature Expansion for Discovery
+
+#### JC-5.1: Symbology Files (.qml/.sld)
+- Pre-built QGIS styles for prospectivity classification. **Effort:** 1–2 days
+
+#### JC-5.2: Layer Grouping in Results Loading
+- Group levels in QGIS layer tree. **Effort:** 1 day
+
+#### JC-5.3: 3D Layered Mesh (UGRID/MDAL) Export
+- Native QGIS 3D viewer support. **Effort:** 5–7 days
+
+#### JC-5.4: QGIS 4.0 (Qt6) Full Port Test
+- Run migration script and test. **Effort:** 2–3 days
+
+#### JC-5.5: Plugin Repository Submission
+- Icon, docs, QGIS Plugin Repository. **Effort:** 3–5 days
+
+### Sprint Schedule (Proposed)
+
+| Sprint | Duration | Job Cards | Focus |
+|--------|----------|-----------|-------|
+| **S9** | 1 week | JC-1.2, JC-1.3, JC-2.4, JC-3.5, JC-4.3 | Quick critical fixes |
+| **S10** | 2 weeks | JC-1.1, JC-1.4 | Desurvey + GDAL migration |
+| **S11** | 2 weeks | JC-2.1, JC-2.2 | Deposit-agnostic scoring |
+| **S12** | 2 weeks | JC-2.3, JC-3.1 | Config UI + async processing |
+| **S13** | 1 week | JC-3.2, JC-3.3, JC-3.4 | Performance + cleanup |
+| **S14** | 2 weeks | JC-4.1, JC-4.2, JC-4.4, JC-4.5 | Test coverage |
+| **S15** | 2 weeks | JC-5.1–JC-5.5 | Features + release |
+
+**Total estimated: ~12 weeks to production-ready v2.0**
+
+### Risk Register
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Rasterio not available in target QGIS Python | Medium | High | Fall back to GDAL bindings (always available in QGIS) |
+| Desurvey implementation introduces new bugs | Medium | High | Validate against known Kayad drill hole trajectories |
+| Preset configs for non-SEDEX deposits need geological review | High | High | Engage domain experts per deposit type before release |
+| Qt6 migration breaks UI | Low | Medium | Maintain Qt5 as primary; Qt6 port in parallel branch |
+| Performance insufficient for grids >1M cells | Medium | Medium | Profile hot paths; consider Cython for scoring engine |
+
+### Decision Points for Team Review
+
+1. **Do we fix desurvey (JC-1.1) before any field deployment?** Recommendation: YES
+2. **Which deposit types for v2.0 presets?** Recommendation: SEDEX + VMS + Epithermal + Porphyry
+3. **Rasterio vs GDAL bindings?** Recommendation: Rasterio with GDAL fallback
+4. **3D mesh export now or v3.0?** Recommendation: Defer
+5. **Ship intermediate v1.1.0 with Sprint 9 quick fixes?** Recommendation: YES
+
+---
+
+*This plan to be reviewed by the full team with the lens: "Does every job card serve the primary objective of mineral discovery?"*
+
+*Satya to lead prioritisation and assignment in the team meeting.*

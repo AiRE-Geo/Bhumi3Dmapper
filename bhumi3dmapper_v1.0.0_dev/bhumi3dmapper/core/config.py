@@ -24,7 +24,8 @@ class GridConfig:
     @property
     def z_levels(self):
         import numpy as np
-        return list(np.arange(self.z_bot_mrl, self.z_top_mrl + self.dz_m, self.dz_m))
+        n = int(round((self.z_top_mrl - self.z_bot_mrl) / self.dz_m)) + 1
+        return list(np.linspace(self.z_bot_mrl, self.z_top_mrl, n))
 
     @property
     def n_cells_per_level(self):

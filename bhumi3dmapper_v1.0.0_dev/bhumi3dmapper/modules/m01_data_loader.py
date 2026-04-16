@@ -5,16 +5,14 @@ Loads and validates all input datasets from paths defined in ProjectConfig.
 Returns standardised pandas DataFrames and numpy arrays.
 Works for any project — column names, file formats and CRS are config-driven.
 """
-import os, re, glob, warnings
+import os, re, glob
 import numpy as np
 import pandas as pd
 from PIL import Image
-warnings.filterwarnings('ignore')
 
 try:
-    from core.config import ProjectConfig, DrillDataConfig, GeophysicsConfig
+    from ..core.config import ProjectConfig, DrillDataConfig, GeophysicsConfig
 except ImportError:
-    import sys; sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from core.config import ProjectConfig, DrillDataConfig, GeophysicsConfig
 
 
@@ -27,6 +25,10 @@ class DataLoader:
 
     def log(self, msg):
         print(msg); self._log.append(msg)
+
+    def _classify_rock_code(self, code: str) -> int:
+        """Map a rock code string to an integer lithology code. Unknown codes return 0."""
+        return self.cfg.lithology.rock_codes.get(code.upper(), 0)
 
     # ── DRILL DATA ────────────────────────────────────────────────────────────
     def load_collar(self) -> pd.DataFrame:
@@ -57,7 +59,7 @@ class DataLoader:
             df[c] = pd.to_numeric(df[c], errors='coerce')
         lc_map = self.cfg.lithology.rock_codes
         df['lcode'] = df[self.dc.col_rockcode].apply(
-            lambda x: lc_map.get(str(x).strip().upper(), 0))
+            lambda x: self._classify_rock_code(str(x).strip()))
         self.log(f"Litho: {len(df)} intervals, "
                  f"{df['lcode'].nunique()} unique codes")
         return df

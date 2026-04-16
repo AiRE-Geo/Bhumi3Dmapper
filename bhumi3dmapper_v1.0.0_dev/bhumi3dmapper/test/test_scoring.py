@@ -149,6 +149,35 @@ def test_gravity_gradient_returns_valid():
     assert np.all((s >= 0) & (s <= 1))
 
 
+def test_gravity_gradient_g90_branch():
+    """Verify the g90 branch is reachable (was dead code before JC-02 fix)."""
+    gg_mean, gg_std = 0.0003, 0.0002
+    g40 = gg_mean + 0.15 * gg_std   # 0.00033
+    g80 = gg_mean + 0.95 * gg_std   # 0.00049
+    g90 = gg_mean + 1.40 * gg_std   # 0.00058
+    # Value well above g90
+    above_g90 = arr(0.001)
+    grav = arr(0.1)  # above mean, no bonus
+    s = score_gravity_gradient(above_g90, grav, grav_mean=0.0,
+                                gg_mean=gg_mean, gg_std=gg_std)
+    assert np.isclose(s[0], 0.35), f"Above g90 should score 0.35, got {s[0]}"
+    # Value between g80 and g90
+    between_g80_g90 = arr(0.00053)
+    s2 = score_gravity_gradient(between_g80_g90, grav, grav_mean=0.0,
+                                 gg_mean=gg_mean, gg_std=gg_std)
+    assert np.isclose(s2[0], 0.55), f"Between g80-g90 should score 0.55, got {s2[0]}"
+    # Value between g40 and g80
+    between_g40_g80 = arr(0.00040)
+    s3 = score_gravity_gradient(between_g40_g80, grav, grav_mean=0.0,
+                                 gg_mean=gg_mean, gg_std=gg_std)
+    assert np.isclose(s3[0], 0.90), f"Between g40-g80 should score 0.90, got {s3[0]}"
+    # Value below mean
+    below_mean = arr(0.0001)
+    s4 = score_gravity_gradient(below_mean, grav, grav_mean=0.0,
+                                 gg_mean=gg_mean, gg_std=gg_std)
+    assert np.isclose(s4[0], 0.25), f"Below mean should score 0.25, got {s4[0]}"
+
+
 # ── Mag gradient (blind C8) ──────────────────────────────────────────────
 def test_mag_gradient_returns_valid():
     mg = arr(0.02, 0.05, 0.1)

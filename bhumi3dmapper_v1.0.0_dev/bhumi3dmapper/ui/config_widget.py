@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
 """Reusable configuration editor widget for Bhumi3DMapper."""
-import os
-import json
-
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
     QLineEdit, QSpinBox, QDoubleSpinBox, QFileDialog, QPushButton,
     QLabel, QComboBox, QScrollArea,
 )
-from qgis.PyQt.QtCore import Qt, QCoreApplication
+from qgis.PyQt.QtCore import QCoreApplication
 
 
 def tr(msg):

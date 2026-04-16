@@ -11,7 +11,6 @@ from qgis.core import (
     QgsProcessingParameterEnum,
     QgsProcessingParameterString,
     QgsProcessingOutputString,
-    Qgis,
 )
 
 

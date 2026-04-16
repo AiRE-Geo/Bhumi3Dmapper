@@ -9,16 +9,13 @@ Builds spatial lookups from drill data:
 
 Config-driven: rock codes, column names, and grid all come from ProjectConfig.
 """
-import math, os, warnings
+import math, os
 import numpy as np
 import pandas as pd
-warnings.filterwarnings('ignore')
-
 try:
-    from core.config import ProjectConfig
-    from modules.m01_data_loader import DataLoader
+    from ..core.config import ProjectConfig
+    from .m01_data_loader import DataLoader
 except ImportError:
-    import sys; sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from core.config import ProjectConfig
     from modules.m01_data_loader import DataLoader
 

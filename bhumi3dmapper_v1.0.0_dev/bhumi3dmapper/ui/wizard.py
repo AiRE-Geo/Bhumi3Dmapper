@@ -8,7 +8,6 @@ from qgis.PyQt.QtWidgets import (
     QFormLayout, QTextEdit, QProgressBar, QMessageBox,
 )
 from qgis.PyQt.QtCore import Qt, QCoreApplication
-from qgis.PyQt.QtGui import QFont
 
 
 def tr(msg):
@@ -80,10 +79,7 @@ class WelcomePage(QWizardPage):
             self, tr('Save New Config'), 'project_config.json', 'JSON (*.json)')
         if path:
             try:
-                import sys
-                plugin_dir = os.path.dirname(os.path.dirname(__file__))
-                sys.path.insert(0, plugin_dir)
-                from core.config import ProjectConfig
+                from ..core.config import ProjectConfig
                 cfg = ProjectConfig()
                 cfg.to_json(path)
                 self.path_edit.setText(path)
@@ -118,10 +114,7 @@ class DataPage(QWizardPage):
         config_path = self.wizard().get_config_path()
         if config_path and os.path.exists(config_path):
             try:
-                import sys
-                plugin_dir = os.path.dirname(os.path.dirname(__file__))
-                sys.path.insert(0, plugin_dir)
-                from core.config import ProjectConfig
+                from ..core.config import ProjectConfig
                 cfg = ProjectConfig.from_json(config_path)
                 self.config_widget.load_from_config(cfg)
             except Exception:
@@ -132,10 +125,7 @@ class DataPage(QWizardPage):
         config_path = self.wizard().get_config_path()
         if config_path:
             try:
-                import sys
-                plugin_dir = os.path.dirname(os.path.dirname(__file__))
-                sys.path.insert(0, plugin_dir)
-                from core.config import ProjectConfig
+                from ..core.config import ProjectConfig
                 cfg = ProjectConfig.from_json(config_path)
                 self.config_widget.save_to_config(cfg)
                 cfg.to_json(config_path)
@@ -220,10 +210,7 @@ class RunPage(QWizardPage):
             self.progress.setValue(80)
             self.log.append(tr('Loading results into QGIS…'))
 
-            import sys
-            plugin_dir = os.path.dirname(os.path.dirname(__file__))
-            sys.path.insert(0, plugin_dir)
-            from core.config import ProjectConfig
+            from ..core.config import ProjectConfig
             cfg = ProjectConfig.from_json(config_path)
             gpkg_dir = os.path.join(cfg.outputs.output_dir, 'gpkg')
 

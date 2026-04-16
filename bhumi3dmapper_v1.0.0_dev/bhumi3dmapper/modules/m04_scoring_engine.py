@@ -9,13 +9,11 @@ To add a new criterion:
   2. Add it to compute_proximity() or compute_blind() with its weight key
   3. Add the weight key to ScoringWeightsConfig in config.py
 """
-import math, numpy as np, os, warnings
-warnings.filterwarnings('ignore')
+import math, numpy as np, os
 
 try:
-    from core.config import ProjectConfig, ScoringWeightsConfig, StructuralConfig
+    from ..core.config import ProjectConfig, ScoringWeightsConfig, StructuralConfig
 except ImportError:
-    import sys; sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from core.config import ProjectConfig, ScoringWeightsConfig, StructuralConfig
 
 
@@ -176,10 +174,10 @@ def score_gravity_gradient(grav_grad: np.ndarray, grav: np.ndarray,
     g40 = gg_mean + 0.15 * gg_std
     g80 = gg_mean + 0.95 * gg_std
     g90 = gg_mean + 1.40 * gg_std
-    c7b = np.where((grav_grad >= g40) & (grav_grad <= g80), 0.90,
-          np.where((grav_grad >= gg_mean) & (grav_grad < g40), 0.70,
+    c7b = np.where(grav_grad > g90, 0.35,
           np.where(grav_grad > g80, 0.55,
-          np.where(grav_grad > g90, 0.35, 0.25)))).astype(np.float32)
+          np.where((grav_grad >= g40) & (grav_grad <= g80), 0.90,
+          np.where(grav_grad >= gg_mean, 0.70, 0.25)))).astype(np.float32)
     c7b = np.where(grav < grav_mean, c7b + 0.10, c7b)
     return np.clip(c7b, 0, 1).astype(np.float32)
 

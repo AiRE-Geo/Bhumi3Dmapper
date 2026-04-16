@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Bhumi3DMapper dockable project panel — main control interface."""
 import os
-import traceback
 
 from qgis.PyQt.QtWidgets import (
     QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
@@ -10,7 +9,6 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.PyQt.QtCore import Qt, QCoreApplication
 from qgis.PyQt.QtGui import QFont
-from qgis.core import QgsApplication, Qgis
 
 
 def tr(msg):
@@ -138,7 +136,7 @@ class BhumiDockWidget(QDockWidget):
             tr('JSON files (*.json);;All files (*)'))
         if path:
             try:
-                from .core.config import ProjectConfig
+                from ..core.config import ProjectConfig
                 cfg = ProjectConfig.from_json(path)
                 self.config_path = path
                 self.config_label.setText(f'{cfg.project_name}\n{os.path.basename(path)}')
@@ -153,7 +151,7 @@ class BhumiDockWidget(QDockWidget):
             tr('JSON files (*.json)'))
         if path:
             try:
-                from .core.config import ProjectConfig
+                from ..core.config import ProjectConfig
                 cfg = ProjectConfig()
                 cfg.to_json(path)
                 self.config_path = path
@@ -204,7 +202,7 @@ class BhumiDockWidget(QDockWidget):
         if not self._check_config():
             return
         try:
-            from .core.config import ProjectConfig
+            from ..core.config import ProjectConfig
             cfg = ProjectConfig.from_json(self.config_path)
             gpkg_dir = os.path.join(cfg.outputs.output_dir, 'gpkg')
             if not os.path.isdir(gpkg_dir):

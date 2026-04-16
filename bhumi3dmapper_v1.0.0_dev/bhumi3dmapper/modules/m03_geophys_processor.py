@@ -12,14 +12,11 @@ Computes derived geophysical fields and provides level interpolation:
 All pixel sizes and grid extents come from ProjectConfig — fully portable.
 """
 import numpy as np
-import os, warnings
-warnings.filterwarnings('ignore')
-
+import os
 try:
-    from core.config import ProjectConfig, GeophysicsConfig, GridConfig
+    from ..core.config import ProjectConfig
 except ImportError:
-    import sys; sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-    from core.config import ProjectConfig, GeophysicsConfig, GridConfig
+    from core.config import ProjectConfig
 
 
 class GeophysicsProcessor:

@@ -9,9 +9,8 @@ import sqlite3, struct, os, numpy as np
 from typing import Optional
 
 try:
-    from core.config import ProjectConfig
+    from ..core.config import ProjectConfig
 except ImportError:
-    import sys; sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from core.config import ProjectConfig
 
 LITHO_NAMES  = {0:'Unknown',1:'QMS',2:'Amphibolite',3:'Pegmatite',4:'CSR',5:'Quartzite'}

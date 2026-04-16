@@ -6,16 +6,14 @@ Iterates over Z levels, calls DrillProcessor + GeophysicsProcessor + ScoringEngi
 packs into numpy structured arrays, saves compressed .npz archives.
 Fully config-driven — grid, CRS, Z range, slab size all from ProjectConfig.
 """
-import numpy as np, os, time, warnings, json
-warnings.filterwarnings('ignore')
+import numpy as np, os, time, json
 
 try:
-    from core.config import ProjectConfig
-    from modules.m02_drill_processor import DrillProcessor
-    from modules.m03_geophys_processor import GeophysicsProcessor
-    from modules.m04_scoring_engine import compute_proximity, compute_blind
+    from ..core.config import ProjectConfig
+    from .m02_drill_processor import DrillProcessor
+    from .m03_geophys_processor import GeophysicsProcessor
+    from .m04_scoring_engine import compute_proximity, compute_blind
 except ImportError:
-    import sys; sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from core.config import ProjectConfig
     from modules.m02_drill_processor import DrillProcessor
     from modules.m03_geophys_processor import GeophysicsProcessor
