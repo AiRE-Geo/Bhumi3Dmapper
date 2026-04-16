@@ -28,92 +28,117 @@ def score_lithology(lv: np.ndarray, regime_id: int, cfg: ProjectConfig,
     litho_scores: override per-regime score table.
     Default: primary host=1.0 upper, secondary host=1.0 lower, hard veto=0.
     """
+    ct = cfg.criterion_thresholds
     if litho_scores is None:
-        # Default score tables per regime_id
-        litho_scores = {
-            2: {1: 1.0, 2: 0.0, 3: 0.30, 4: 0.25, 5: 0.40, 0: 0.25},  # upper
-            1: {1: 0.8, 2: 0.0, 3: 0.30, 4: 0.50, 5: 0.40, 0: 0.30},  # transition
-            0: {1: 0.6, 2: 0.0, 3: 0.30, 4: 1.00, 5: 0.40, 0: 0.30},  # lower
-        }
+        litho_scores = ct.litho_scores
     tbl = litho_scores.get(regime_id, litho_scores.get(0, {}))
-    return np.array([tbl.get(int(x), 0.25) for x in lv], dtype=np.float32)
+    return np.array([tbl.get(int(x), ct.litho_default_score) for x in lv], dtype=np.float32)
 
 
-def score_pg_halo(pg_dist: np.ndarray, regime_id: int) -> np.ndarray:
+def score_pg_halo(pg_dist: np.ndarray, regime_id: int, cfg: ProjectConfig = None) -> np.ndarray:
     """C2 — Structural marker (PG) contact halo. Inactive in lower regime."""
-    if regime_id == 0:
-        return np.full(len(pg_dist), 0.4, dtype=np.float32)
-    return np.where(pg_dist < 2,  0.50,
-           np.where(pg_dist < 4,  0.80,
-           np.where(pg_dist < 10, 1.00,
-           np.where(pg_dist < 15, 0.70,
-           np.where(pg_dist < 20, 0.50,
-           np.where(pg_dist < 30, 0.35,
-           np.where(pg_dist < 50, 0.25, 0.15))))))).astype(np.float32)
-
-
-def score_footwall_standoff(standoff: np.ndarray, regime_id: int) -> np.ndarray:
-    """C3 — Footwall (CSR) standoff. Inverts below transition."""
-    if regime_id == 0:  # lower: contact = favourable
-        return np.where(standoff < 5,  1.00,
-               np.where(standoff < 15, 0.70,
-               np.where(standoff < 30, 0.45, 0.25))).astype(np.float32)
-    return np.where(standoff < 5,   0.40,
-           np.where(standoff < 10,  0.65,
-           np.where(standoff < 40,  1.00,
-           np.where(standoff < 60,  0.70,
-           np.where(standoff < 100, 0.40, 0.20))))).astype(np.float32)
-
-
-def score_gravity_absolute(grav: np.ndarray, z_mrl: float) -> np.ndarray:
-    """C4 — Gravity (proximity model): absolute mGal thresholds."""
-    if z_mrl >= 310:
-        return np.where(grav < -0.10, 0.95,
-               np.where(grav < -0.03, 0.80,
-               np.where(grav <  0.05, 0.60,
-               np.where(grav <  0.30, 0.40,
-               np.where(grav <  0.80, 0.25, 0.10))))).astype(np.float32)
-    elif z_mrl >= 160:
-        return np.where(grav < 0,    0.75,
-               np.where(grav < 0.05, 0.60,
-               np.where(grav < 0.10, 0.45, 0.30))).astype(np.float32)
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+        br, sv = ct.pg_breaks, ct.pg_scores
+        fill = ct.pg_lower_fill
     else:
-        return np.where(grav < 0,    0.65,
-               np.where(grav < 0.05, 0.55, 0.40)).astype(np.float32)
+        br = [2, 4, 10, 15, 20, 30, 50]
+        sv = [0.50, 0.80, 1.00, 0.70, 0.50, 0.35, 0.25, 0.15]
+        fill = 0.4
+    if regime_id == 0:
+        return np.full(len(pg_dist), fill, dtype=np.float32)
+    score = np.full(len(pg_dist), sv[-1], dtype=np.float32)
+    for i in range(len(br) - 1, -1, -1):
+        score = np.where(pg_dist < br[i], sv[i], score)
+    return score
+
+
+def score_footwall_standoff(standoff: np.ndarray, regime_id: int, cfg: ProjectConfig = None) -> np.ndarray:
+    """C3 — Footwall (CSR) standoff. Inverts below transition."""
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+    if regime_id == 0:  # lower: contact = favourable
+        br = ct.csr_lower_breaks if cfg else [5, 15, 30]
+        sv = ct.csr_lower_scores if cfg else [1.00, 0.70, 0.45, 0.25]
+    else:
+        br = ct.csr_upper_breaks if cfg else [5, 10, 40, 60, 100]
+        sv = ct.csr_upper_scores if cfg else [0.40, 0.65, 1.00, 0.70, 0.40, 0.20]
+    score = np.full(len(standoff), sv[-1], dtype=np.float32)
+    for i in range(len(br) - 1, -1, -1):
+        score = np.where(standoff < br[i], sv[i], score)
+    return score
+
+
+def score_gravity_absolute(grav: np.ndarray, z_mrl: float, cfg: ProjectConfig = None) -> np.ndarray:
+    """C4 — Gravity (proximity model): absolute mGal thresholds."""
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+        if z_mrl >= ct.grav_abs_z_upper:
+            br, sv = ct.grav_abs_upper_breaks, ct.grav_abs_upper_scores
+        elif z_mrl >= ct.grav_abs_z_mid:
+            br, sv = ct.grav_abs_mid_breaks, ct.grav_abs_mid_scores
+        else:
+            br, sv = ct.grav_abs_lower_breaks, ct.grav_abs_lower_scores
+    else:
+        if z_mrl >= 310:
+            br = [-0.10, -0.03, 0.05, 0.30, 0.80]
+            sv = [0.95, 0.80, 0.60, 0.40, 0.25, 0.10]
+        elif z_mrl >= 160:
+            br = [0, 0.05, 0.10]
+            sv = [0.75, 0.60, 0.45, 0.30]
+        else:
+            br = [0, 0.05]
+            sv = [0.65, 0.55, 0.40]
+    score = np.full(len(grav), sv[-1], dtype=np.float32)
+    for i in range(len(br) - 1, -1, -1):
+        score = np.where(grav < br[i], sv[i], score)
+    return score
 
 
 def score_gravity_contextual(grav: np.ndarray, grav_mean: float,
-                              grav_std: float) -> np.ndarray:
+                              grav_std: float, cfg: ProjectConfig = None) -> np.ndarray:
     """C4 — Gravity (blind model): z-score relative to level mean."""
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+        br, sv = ct.contextual_zscore_breaks, ct.contextual_zscore_scores
+    else:
+        br = [-1.5, -0.75, -0.25, 0.0, 0.5, 1.0]
+        sv = [1.00, 0.90, 0.75, 0.60, 0.45, 0.30, 0.15]
     zn = (grav - grav_mean) / max(grav_std, 0.001)
-    return np.where(zn < -1.5, 1.00,
-           np.where(zn < -0.75, 0.90,
-           np.where(zn < -0.25, 0.75,
-           np.where(zn <  0.0,  0.60,
-           np.where(zn <  0.5,  0.45,
-           np.where(zn <  1.0,  0.30, 0.15)))))).astype(np.float32)
+    score = np.full(len(grav), sv[-1], dtype=np.float32)
+    for i in range(len(br) - 1, -1, -1):
+        score = np.where(zn < br[i], sv[i], score)
+    return score
 
 
-def score_mag_absolute(mag: np.ndarray) -> np.ndarray:
+def score_mag_absolute(mag: np.ndarray, cfg: ProjectConfig = None) -> np.ndarray:
     """C5 — Magnetics (proximity model): absolute µSI thresholds."""
-    return np.where(mag < -10, 1.00,
-           np.where(mag <  -5, 0.90,
-           np.where(mag <   0, 0.75,
-           np.where(mag <  10, 0.60,
-           np.where(mag <  30, 0.40,
-           np.where(mag <  60, 0.25, 0.12)))))).astype(np.float32)
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+        br, sv = ct.mag_abs_breaks, ct.mag_abs_scores
+    else:
+        br = [-10, -5, 0, 10, 30, 60]
+        sv = [1.00, 0.90, 0.75, 0.60, 0.40, 0.25, 0.12]
+    score = np.full(len(mag), sv[-1], dtype=np.float32)
+    for i in range(len(br) - 1, -1, -1):
+        score = np.where(mag < br[i], sv[i], score)
+    return score
 
 
 def score_mag_contextual(mag: np.ndarray, mag_mean: float,
-                         mag_std: float) -> np.ndarray:
+                         mag_std: float, cfg: ProjectConfig = None) -> np.ndarray:
     """C5 — Magnetics (blind model): z-score."""
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+        br, sv = ct.contextual_zscore_breaks, ct.contextual_zscore_scores
+    else:
+        br = [-1.5, -0.75, -0.25, 0.0, 0.5, 1.0]
+        sv = [1.00, 0.90, 0.75, 0.60, 0.45, 0.30, 0.15]
     zm = (mag - mag_mean) / max(mag_std, 1.0)
-    return np.where(zm < -1.5, 1.00,
-           np.where(zm < -0.75, 0.90,
-           np.where(zm < -0.25, 0.75,
-           np.where(zm <  0.0,  0.60,
-           np.where(zm <  0.5,  0.45,
-           np.where(zm <  1.0,  0.30, 0.15)))))).astype(np.float32)
+    score = np.full(len(mag), sv[-1], dtype=np.float32)
+    for i in range(len(br) - 1, -1, -1):
+        score = np.where(zm < br[i], sv[i], score)
+    return score
 
 
 def score_structural_corridor(cell_E: np.ndarray, cell_N: np.ndarray,
@@ -155,51 +180,79 @@ def score_structural_corridor(cell_E: np.ndarray, cell_N: np.ndarray,
 
 
 def score_plunge_proximity(cell_E: np.ndarray, cell_N: np.ndarray,
-                            ax_E: float, ax_N: float) -> np.ndarray:
+                            ax_E: float, ax_N: float, cfg: ProjectConfig = None) -> np.ndarray:
     """
     C7 — Plunge axis proximity (PROXIMITY-BIASED).
     Rewards cells near the projected centre of the known ore shoot.
     """
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+        br, sv = ct.plunge_breaks, ct.plunge_scores
+    else:
+        br = [75, 150, 300, 600]
+        sv = [1.00, 0.80, 0.55, 0.30, 0.10]
     d = np.sqrt((cell_E - ax_E)**2 + (cell_N - ax_N)**2)
-    return np.where(d < 75,  1.00,
-           np.where(d < 150, 0.80,
-           np.where(d < 300, 0.55,
-           np.where(d < 600, 0.30, 0.10)))).astype(np.float32)
+    score = np.full(len(cell_E), sv[-1], dtype=np.float32)
+    for i in range(len(br) - 1, -1, -1):
+        score = np.where(d < br[i], sv[i], score)
+    return score
 
 
 def score_gravity_gradient(grav_grad: np.ndarray, grav: np.ndarray,
                             grav_mean: float, gg_mean: float,
-                            gg_std: float) -> np.ndarray:
+                            gg_std: float, cfg: ProjectConfig = None) -> np.ndarray:
     """C7b — Gravity gradient (blind model, replaces plunge proximity)."""
-    g40 = gg_mean + 0.15 * gg_std
-    g80 = gg_mean + 0.95 * gg_std
-    g90 = gg_mean + 1.40 * gg_std
-    c7b = np.where(grav_grad > g90, 0.35,
-          np.where(grav_grad > g80, 0.55,
-          np.where((grav_grad >= g40) & (grav_grad <= g80), 0.90,
-          np.where(grav_grad >= gg_mean, 0.70, 0.25)))).astype(np.float32)
-    c7b = np.where(grav < grav_mean, c7b + 0.10, c7b)
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+        p40m, p80m, p90m = ct.grav_grad_p40_mult, ct.grav_grad_p80_mult, ct.grav_grad_p90_mult
+        sv = ct.grav_grad_scores
+        bonus = ct.grav_grad_bonus
+    else:
+        p40m, p80m, p90m = 0.15, 0.95, 1.40
+        sv = [0.90, 0.70, 0.55, 0.35, 0.25]
+        bonus = 0.10
+    g40 = gg_mean + p40m * gg_std
+    g80 = gg_mean + p80m * gg_std
+    g90 = gg_mean + p90m * gg_std
+    c7b = np.where(grav_grad > g90, sv[3],
+          np.where(grav_grad > g80, sv[2],
+          np.where((grav_grad >= g40) & (grav_grad <= g80), sv[0],
+          np.where(grav_grad >= gg_mean, sv[1], sv[4])))).astype(np.float32)
+    c7b = np.where(grav < grav_mean, c7b + bonus, c7b)
     return np.clip(c7b, 0, 1).astype(np.float32)
 
 
 def score_mag_gradient(mag_grad: np.ndarray, mag: np.ndarray,
-                        mag_mean: float, mg_p50: float) -> np.ndarray:
+                        mag_mean: float, mg_p50: float, cfg: ProjectConfig = None) -> np.ndarray:
     """C8 — Magnetic gradient (blind model)."""
-    c8 = np.where(mag_grad >= mg_p50 * 1.5, 0.85,
-         np.where(mag_grad >= mg_p50,       0.70,
-         np.where(mag_grad >= mg_p50 * 0.5, 0.50, 0.25))).astype(np.float32)
-    c8 = np.where(mag < mag_mean, c8 + 0.10, c8)
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+        mults, sv = ct.mag_grad_mults, ct.mag_grad_scores
+        bonus = ct.mag_grad_bonus
+    else:
+        mults = [1.5, 1.0, 0.5]
+        sv = [0.85, 0.70, 0.50, 0.25]
+        bonus = 0.10
+    c8 = np.where(mag_grad >= mg_p50 * mults[0], sv[0],
+         np.where(mag_grad >= mg_p50 * mults[1], sv[1],
+         np.where(mag_grad >= mg_p50 * mults[2], sv[2], sv[3]))).astype(np.float32)
+    c8 = np.where(mag < mag_mean, c8 + bonus, c8)
     return np.clip(c8, 0, 1).astype(np.float32)
 
 
-def score_gravity_laplacian(laplacian: np.ndarray, lap_std: float) -> np.ndarray:
+def score_gravity_laplacian(laplacian: np.ndarray, lap_std: float, cfg: ProjectConfig = None) -> np.ndarray:
     """C9 — Gravity Laplacian (blind model). Negative = closed density deficit."""
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+        br, sv = ct.laplacian_breaks, ct.laplacian_scores
+    else:
+        br = [-1.5, -0.75, -0.25, 0.0, 0.5]
+        sv = [1.00, 0.85, 0.65, 0.50, 0.35, 0.20]
     ln = laplacian / max(lap_std, 1e-8)
-    return np.where(ln < -1.5,  1.00,
-           np.where(ln < -0.75, 0.85,
-           np.where(ln < -0.25, 0.65,
-           np.where(ln <  0.0,  0.50,
-           np.where(ln <  0.5,  0.35, 0.20))))).astype(np.float32)
+    score = np.full(len(laplacian), sv[-1], dtype=np.float32)
+    for i in range(len(br) - 1, -1, -1):
+        score = np.where(ln < br[i], sv[i], score)
+    return score
 
 
 def score_grade_model(cell_E: np.ndarray, cell_N: np.ndarray,
@@ -220,14 +273,22 @@ def score_grade_model(cell_E: np.ndarray, cell_N: np.ndarray,
     return scores
 
 
-def score_ore_envelope(dist_ore: np.ndarray, ore_area: float) -> np.ndarray:
+def score_ore_envelope(dist_ore: np.ndarray, ore_area: float, cfg: ProjectConfig = None) -> np.ndarray:
     """C10 — Ore envelope proximity (PROXIMITY-BIASED)."""
-    eq_r = max(math.sqrt(ore_area / math.pi) if ore_area > 0 else 50, 50)
+    if cfg is not None:
+        ct = cfg.criterion_thresholds
+        br, sv = ct.ore_envelope_breaks, ct.ore_envelope_scores
+        min_r = ct.ore_envelope_min_radius
+    else:
+        br = [0.5, 1.0, 2.0, 3.5]
+        sv = [1.0, 0.8, 0.5, 0.3, 0.1]
+        min_r = 50
+    eq_r = max(math.sqrt(ore_area / math.pi) if ore_area > 0 else min_r, min_r)
     rat  = dist_ore / eq_r
-    return np.where(rat < 0.5, 1.0,
-           np.where(rat < 1.0, 0.8,
-           np.where(rat < 2.0, 0.5,
-           np.where(rat < 3.5, 0.3, 0.1)))).astype(np.float32)
+    score = np.full(len(dist_ore), sv[-1], dtype=np.float32)
+    for i in range(len(br) - 1, -1, -1):
+        score = np.where(rat < br[i], sv[i], score)
+    return score
 
 
 def score_novelty(dist_ore: np.ndarray, cfg: ProjectConfig) -> np.ndarray:
@@ -273,16 +334,16 @@ def compute_proximity(inputs: dict, cfg: ProjectConfig) -> dict:
     w     = cfg.scoring.proximity
 
     c1  = score_lithology(inputs['lv'], rid, cfg)
-    c2  = score_pg_halo(inputs['pg'], rid)
-    c3  = score_footwall_standoff(inputs['csr'], rid)
-    c4  = score_gravity_absolute(inputs['grav'], z)
-    c5  = score_mag_absolute(inputs['mag'])
+    c2  = score_pg_halo(inputs['pg'], rid, cfg)
+    c3  = score_footwall_standoff(inputs['csr'], rid, cfg)
+    c4  = score_gravity_absolute(inputs['grav'], z, cfg)
+    c5  = score_mag_absolute(inputs['mag'], cfg)
     c6, ax_E, ax_N = score_structural_corridor(
             inputs['cell_E'], inputs['cell_N'], z, cfg, rid)
-    c7  = score_plunge_proximity(inputs['cell_E'], inputs['cell_N'], ax_E, ax_N)
+    c7  = score_plunge_proximity(inputs['cell_E'], inputs['cell_N'], ax_E, ax_N, cfg)
     c9  = score_grade_model(inputs['cell_E'], inputs['cell_N'],
                             inputs.get('block_model_df'), cfg)
-    c10 = score_ore_envelope(inputs['dist_ore'], inputs.get('ore_area', 50000))
+    c10 = score_ore_envelope(inputs['dist_ore'], inputs.get('ore_area', 50000), cfg)
 
     W   = sum(w.values())
     raw = (c1  * w.get('c1_lithology', 2.0)
@@ -311,20 +372,20 @@ def compute_blind(inputs: dict, cfg: ProjectConfig) -> dict:
     w     = cfg.scoring.blind
 
     c1  = score_lithology(inputs['lv'], rid, cfg)
-    c2  = score_pg_halo(inputs['pg'], rid)
-    c3  = score_footwall_standoff(inputs['csr'], rid)
+    c2  = score_pg_halo(inputs['pg'], rid, cfg)
+    c3  = score_footwall_standoff(inputs['csr'], rid, cfg)
     c4  = score_gravity_contextual(inputs['grav'],
-                                    inputs['grav_mean'], inputs['grav_std'])
+                                    inputs['grav_mean'], inputs['grav_std'], cfg)
     c5  = score_mag_contextual(inputs['mag'],
-                                inputs['mag_mean'], inputs['mag_std'])
+                                inputs['mag_mean'], inputs['mag_std'], cfg)
     c6, _, _ = score_structural_corridor(
             inputs['cell_E'], inputs['cell_N'], z, cfg, rid)
     c7b = score_gravity_gradient(inputs['grav_gradient'], inputs['grav'],
                                   inputs['grav_mean'], inputs['gg_mean'],
-                                  inputs['gg_std'])
+                                  inputs['gg_std'], cfg)
     c8  = score_mag_gradient(inputs['mag_gradient'], inputs['mag'],
-                              inputs['mag_mean'], inputs['mg_p50'])
-    c9l = score_gravity_laplacian(inputs['grav_laplacian'], inputs['lap_std'])
+                              inputs['mag_mean'], inputs['mg_p50'], cfg)
+    c9l = score_gravity_laplacian(inputs['grav_laplacian'], inputs['lap_std'], cfg)
     c10 = score_novelty(inputs['dist_ore'], cfg)
 
     W   = sum(w.values())

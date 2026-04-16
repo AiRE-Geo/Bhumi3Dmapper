@@ -193,6 +193,92 @@ class BlockModelConfig:
 
 
 @dataclass
+class ScoringThresholdsConfig:
+    """
+    Criterion-specific scoring thresholds — configurable per deposit type.
+    Kayad SEDEX Pb-Zn defaults are provided. Override for VMS, epithermal, porphyry, etc.
+    """
+    # C1 — Lithology score tables per regime {regime_id: {lcode: score}}
+    litho_scores: Dict[int, Dict[int, float]] = field(default_factory=lambda: {
+        2: {1: 1.0, 2: 0.0, 3: 0.30, 4: 0.25, 5: 0.40, 0: 0.25},  # upper
+        1: {1: 0.8, 2: 0.0, 3: 0.30, 4: 0.50, 5: 0.40, 0: 0.30},  # transition
+        0: {1: 0.6, 2: 0.0, 3: 0.30, 4: 1.00, 5: 0.40, 0: 0.30},  # lower
+    })
+    litho_default_score: float = 0.25
+
+    # C2 — PG halo distance breaks (m) and scores
+    pg_breaks: List[float] = field(default_factory=lambda: [2, 4, 10, 15, 20, 30, 50])
+    pg_scores: List[float] = field(default_factory=lambda: [0.50, 0.80, 1.00, 0.70, 0.50, 0.35, 0.25, 0.15])
+    pg_lower_fill: float = 0.4
+
+    # C3 — CSR/footwall standoff breaks + scores per regime
+    csr_upper_breaks: List[float] = field(default_factory=lambda: [5, 10, 40, 60, 100])
+    csr_upper_scores: List[float] = field(default_factory=lambda: [0.40, 0.65, 1.00, 0.70, 0.40, 0.20])
+    csr_lower_breaks: List[float] = field(default_factory=lambda: [5, 15, 30])
+    csr_lower_scores: List[float] = field(default_factory=lambda: [1.00, 0.70, 0.45, 0.25])
+
+    # C4a — Gravity absolute thresholds (mGal) per depth zone
+    grav_abs_z_upper: float = 310.0
+    grav_abs_z_mid: float = 160.0
+    grav_abs_upper_breaks: List[float] = field(default_factory=lambda: [-0.10, -0.03, 0.05, 0.30, 0.80])
+    grav_abs_upper_scores: List[float] = field(default_factory=lambda: [0.95, 0.80, 0.60, 0.40, 0.25, 0.10])
+    grav_abs_mid_breaks: List[float] = field(default_factory=lambda: [0, 0.05, 0.10])
+    grav_abs_mid_scores: List[float] = field(default_factory=lambda: [0.75, 0.60, 0.45, 0.30])
+    grav_abs_lower_breaks: List[float] = field(default_factory=lambda: [0, 0.05])
+    grav_abs_lower_scores: List[float] = field(default_factory=lambda: [0.65, 0.55, 0.40])
+
+    # C4b/C5b — Contextual z-score thresholds (gravity and magnetics)
+    contextual_zscore_breaks: List[float] = field(default_factory=lambda: [-1.5, -0.75, -0.25, 0.0, 0.5, 1.0])
+    contextual_zscore_scores: List[float] = field(default_factory=lambda: [1.00, 0.90, 0.75, 0.60, 0.45, 0.30, 0.15])
+
+    # C5a — Magnetics absolute thresholds (uSI)
+    mag_abs_breaks: List[float] = field(default_factory=lambda: [-10, -5, 0, 10, 30, 60])
+    mag_abs_scores: List[float] = field(default_factory=lambda: [1.00, 0.90, 0.75, 0.60, 0.40, 0.25, 0.12])
+
+    # C7 — Plunge proximity breaks (m)
+    plunge_breaks: List[float] = field(default_factory=lambda: [75, 150, 300, 600])
+    plunge_scores: List[float] = field(default_factory=lambda: [1.00, 0.80, 0.55, 0.30, 0.10])
+
+    # C7b — Gravity gradient percentile multipliers
+    grav_grad_p40_mult: float = 0.15
+    grav_grad_p80_mult: float = 0.95
+    grav_grad_p90_mult: float = 1.40
+    grav_grad_scores: List[float] = field(default_factory=lambda: [0.90, 0.70, 0.55, 0.35, 0.25])
+    grav_grad_bonus: float = 0.10
+
+    # C8 — Mag gradient median multipliers
+    mag_grad_mults: List[float] = field(default_factory=lambda: [1.5, 1.0, 0.5])
+    mag_grad_scores: List[float] = field(default_factory=lambda: [0.85, 0.70, 0.50, 0.25])
+    mag_grad_bonus: float = 0.10
+
+    # C9 — Laplacian z-score thresholds
+    laplacian_breaks: List[float] = field(default_factory=lambda: [-1.5, -0.75, -0.25, 0.0, 0.5])
+    laplacian_scores: List[float] = field(default_factory=lambda: [1.00, 0.85, 0.65, 0.50, 0.35, 0.20])
+
+    # C10 — Ore envelope distance/radius ratio breaks
+    ore_envelope_breaks: List[float] = field(default_factory=lambda: [0.5, 1.0, 2.0, 3.5])
+    ore_envelope_scores: List[float] = field(default_factory=lambda: [1.0, 0.8, 0.5, 0.3, 0.1])
+    ore_envelope_min_radius: float = 50.0
+
+    # Drill processor thresholds
+    structural_marker_code: int = 3
+    footwall_code: int = 4
+    coarse_grid_factor: int = 6
+    max_nearest_holes: int = 5
+
+    # Display names
+    litho_names: Dict[int, str] = field(default_factory=lambda: {
+        0: 'Unknown', 1: 'QMS', 2: 'Amphibolite', 3: 'Pegmatite', 4: 'CSR', 5: 'Quartzite'
+    })
+    regime_names: Dict[int, str] = field(default_factory=lambda: {
+        0: 'Lower mine', 1: 'Transition', 2: 'Upper mine'
+    })
+    class_names: Dict[int, str] = field(default_factory=lambda: {
+        0: 'Very Low', 1: 'Low', 2: 'Moderate', 3: 'High', 4: 'Very High'
+    })
+
+
+@dataclass
 class ScoringWeightsConfig:
     """
     Criterion weights for both prospectivity models.
@@ -273,6 +359,7 @@ class ProjectConfig:
     ore_polygons: OrePolygonConfig    = field(default_factory=OrePolygonConfig)
     block_model:  BlockModelConfig    = field(default_factory=BlockModelConfig)
     scoring:      ScoringWeightsConfig = field(default_factory=ScoringWeightsConfig)
+    criterion_thresholds: ScoringThresholdsConfig = field(default_factory=ScoringThresholdsConfig)
     outputs:      OutputConfig        = field(default_factory=OutputConfig)
 
     def to_json(self, path: str):
@@ -295,6 +382,7 @@ class ProjectConfig:
         cfg.ore_polygons = OrePolygonConfig(**d.get('ore_polygons', {}))
         cfg.block_model  = BlockModelConfig(**d.get('block_model', {}))
         cfg.scoring      = ScoringWeightsConfig(**d.get('scoring', {}))
+        cfg.criterion_thresholds = ScoringThresholdsConfig(**d.get('criterion_thresholds', {}))
         cfg.outputs      = OutputConfig(**d.get('outputs', {}))
         for k in ['project_name','project_description','deposit_type',
                   'location','crs_epsg','created_by','created_date','version']:
