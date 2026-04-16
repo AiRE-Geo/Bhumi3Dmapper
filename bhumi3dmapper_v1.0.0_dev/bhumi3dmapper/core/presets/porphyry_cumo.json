@@ -1,0 +1,26 @@
+{
+    "deposit_type": "Porphyry Cu-Mo",
+    "description": "Porphyry Cu-Mo-Au (e.g., El Teniente, Chuquicamata). Concentric alteration zoning around intrusive centre. IP chargeability high. Magnetic depletion in phyllic zone.",
+    "criterion_thresholds": {
+        "litho_scores": {
+            "2": {"1": 0.50, "2": 0.0, "3": 1.00, "4": 0.70, "5": 0.30, "0": 0.20},
+            "1": {"1": 0.50, "2": 0.0, "3": 0.90, "4": 0.65, "5": 0.30, "0": 0.20},
+            "0": {"1": 0.50, "2": 0.0, "3": 0.80, "4": 0.60, "5": 0.30, "0": 0.20}
+        },
+        "pg_breaks": [50, 100, 250, 500, 800, 1200, 2000],
+        "pg_scores": [1.00, 0.95, 0.80, 0.60, 0.40, 0.25, 0.15, 0.05],
+        "pg_lower_fill": 0.3,
+        "plunge_breaks": [100, 300, 600, 1000],
+        "plunge_scores": [1.00, 0.75, 0.50, 0.25, 0.05],
+        "mag_abs_breaks": [-30, -15, -5, 5, 20, 50],
+        "mag_abs_scores": [1.00, 0.85, 0.70, 0.50, 0.35, 0.20, 0.10],
+        "grav_abs_upper_breaks": [-0.20, -0.08, -0.02, 0.10, 0.40],
+        "grav_abs_upper_scores": [0.90, 0.80, 0.65, 0.45, 0.25, 0.10],
+        "ore_envelope_breaks": [1.0, 2.0, 4.0, 8.0],
+        "ore_envelope_scores": [1.0, 0.75, 0.45, 0.20, 0.05],
+        "ore_envelope_min_radius": 100,
+        "litho_names": {"0": "Unknown", "1": "Host volcanic", "2": "Barren intrusive", "3": "Mineralised porphyry", "4": "Hornfels", "5": "Sedimentary cover"},
+        "structural_marker_code": 3,
+        "footwall_code": 4
+    }
+}

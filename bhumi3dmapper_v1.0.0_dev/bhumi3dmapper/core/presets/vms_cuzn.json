@@ -1,0 +1,21 @@
+{
+    "deposit_type": "VMS Cu-Zn",
+    "description": "Volcanogenic massive sulphide Cu-Zn (e.g., Kidd Creek, Neves-Corvo). Primary host: felsic volcanic. Footwall alteration pipe replaces PG halo. Strong EM/IP response.",
+    "criterion_thresholds": {
+        "litho_scores": {
+            "2": {"1": 0.30, "2": 0.0, "3": 0.40, "4": 0.60, "5": 1.00, "0": 0.20},
+            "1": {"1": 0.30, "2": 0.0, "3": 0.40, "4": 0.60, "5": 0.90, "0": 0.20},
+            "0": {"1": 0.30, "2": 0.0, "3": 0.40, "4": 0.60, "5": 0.80, "0": 0.20}
+        },
+        "pg_breaks": [5, 15, 30, 50, 80, 120, 200],
+        "pg_scores": [0.40, 0.70, 1.00, 0.85, 0.60, 0.40, 0.25, 0.10],
+        "pg_lower_fill": 0.3,
+        "csr_upper_breaks": [10, 25, 50, 80, 150],
+        "csr_upper_scores": [0.50, 0.75, 1.00, 0.65, 0.35, 0.15],
+        "mag_abs_breaks": [-20, -10, -5, 0, 15, 40],
+        "mag_abs_scores": [0.90, 1.00, 0.85, 0.65, 0.40, 0.25, 0.10],
+        "structural_marker_code": 3,
+        "footwall_code": 4,
+        "litho_names": {"0": "Unknown", "1": "Mafic volcanic", "2": "Ultramafic", "3": "Felsic intrusive", "4": "Sediment", "5": "Felsic volcanic"}
+    }
+}
