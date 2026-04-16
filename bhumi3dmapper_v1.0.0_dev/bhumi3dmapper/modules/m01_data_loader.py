@@ -8,12 +8,31 @@ Works for any project — column names, file formats and CRS are config-driven.
 import os, re, glob
 import numpy as np
 import pandas as pd
-from PIL import Image
+# TIF loading backends — prefer GDAL (always in QGIS), fallback to rasterio, then PIL
+_TIF_BACKEND = None
+try:
+    from osgeo import gdal
+    gdal.UseExceptions()
+    _TIF_BACKEND = 'gdal'
+except ImportError:
+    try:
+        import rasterio
+        _TIF_BACKEND = 'rasterio'
+    except ImportError:
+        from PIL import Image
+        _TIF_BACKEND = 'pil'
 
 try:
     from ..core.config import ProjectConfig, DrillDataConfig, GeophysicsConfig
 except ImportError:
     from core.config import ProjectConfig, DrillDataConfig, GeophysicsConfig
+
+
+def _polygon_area(xs, ys):
+    """Shoelace formula for polygon area from coordinate arrays."""
+    xs = np.asarray(xs, dtype=np.float64)
+    ys = np.asarray(ys, dtype=np.float64)
+    return 0.5 * abs(float(np.dot(xs, np.roll(ys, -1)) - np.dot(ys, np.roll(xs, -1))))
 
 
 class DataLoader:
@@ -81,11 +100,36 @@ class DataLoader:
                                    recursive=True)):
             m = re.search(r'(-?\d+)\.tif$', os.path.basename(f),
                           re.IGNORECASE)
-            if m:
-                mrl = int(m.group(1))
+            if not m:
+                continue
+            mrl = int(m.group(1))
+
+            if _TIF_BACKEND == 'gdal':
+                ds = gdal.Open(f, gdal.GA_ReadOnly)
+                if ds is None:
+                    self.log(f"  WARNING: Cannot open {f}")
+                    continue
+                band = ds.GetRasterBand(1)
+                arr = band.ReadAsArray().astype(np.float32) * scale
+                nd = band.GetNoDataValue()
+                if nd is not None:
+                    arr[np.isclose(arr, nd * scale)] = np.nan
+                else:
+                    arr[np.isclose(arr, nodata * scale)] = np.nan
+                ds = None  # close dataset
+            elif _TIF_BACKEND == 'rasterio':
+                with rasterio.open(f) as src:
+                    arr = src.read(1).astype(np.float32) * scale
+                    nd = src.nodata
+                    if nd is not None:
+                        arr[np.isclose(arr, nd * scale)] = np.nan
+                    else:
+                        arr[np.isclose(arr, nodata * scale)] = np.nan
+            else:  # PIL fallback
                 arr = np.array(Image.open(f), dtype=np.float32) * scale
-                arr[arr < nodata * 0.9] = np.nan
-                grids[mrl] = arr
+                arr[np.isclose(arr, nodata * scale)] = np.nan
+
+            grids[mrl] = arr
         return grids
 
     def load_gravity(self) -> dict:
@@ -149,7 +193,7 @@ class DataLoader:
                                 'mrl': mrl,
                                 'cx': sum(xs)/len(xs),
                                 'cy': sum(ys)/len(ys),
-                                'area': len(xs)*25
+                                'area': _polygon_area(xs, ys)
                             })
                 con.close()
             except Exception as e:
