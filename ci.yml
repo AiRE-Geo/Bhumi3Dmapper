@@ -1,0 +1,61 @@
+name: Bhumi3DMapper CI
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install numpy pandas Pillow scipy pytest pytest-cov
+
+      - name: Run all tests (no QGIS needed)
+        run: |
+          pytest bhumi3dmapper/test/ -v --tb=short \
+            --cov=bhumi3dmapper \
+            --cov-report=term-missing \
+            --cov-fail-under=80
+
+      - name: Qt6 compatibility check
+        run: |
+          # Check for direct PyQt5/6 imports
+          HITS=$(grep -rn "from PyQt5\|import PyQt5\|from PyQt6\|import PyQt6" \
+            bhumi3dmapper/ --include="*.py" | grep -v test | grep -v __pycache__ | wc -l)
+          echo "Forbidden Qt imports found: $HITS"
+          test $HITS -eq 0 || (echo "FAIL: Remove direct PyQt imports" && exit 1)
+
+      - name: Core module isolation check
+        run: |
+          HITS=$(grep -rn "from qgis\|import qgis" \
+            bhumi3dmapper/core/ bhumi3dmapper/modules/ --include="*.py" | wc -l)
+          echo "QGIS imports in core/modules: $HITS"
+          test $HITS -eq 0 || (echo "FAIL: Core modules must not import QGIS" && exit 1)
+
+  build:
+    name: Build ZIP Package
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create installable ZIP
+        run: |
+          zip -r bhumi3dmapper_v1.0.0.zip bhumi3dmapper/ \
+            --exclude '*/test/*' --exclude '*/__pycache__/*' \
+            --exclude '*.pyc' --exclude '*.git*'
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bhumi3dmapper-zip
+          path: bhumi3dmapper_v1.0.0.zip

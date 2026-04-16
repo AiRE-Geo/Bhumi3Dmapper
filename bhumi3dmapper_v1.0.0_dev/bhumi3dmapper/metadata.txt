@@ -1,0 +1,21 @@
+[general]
+name=Bhumi3DMapper
+qgisMinimumVersion=3.28
+qgisMaximumVersion=4.99
+description=3D mineral prospectivity mapping — SEDEX Pb-Zn, VMS, porphyry, epithermal and more
+version=1.0.0
+author=AiRE — AI Resource Exploration Pvt Ltd
+email=contact@aire-exploration.com
+about=Config-driven multi-criterion prospectivity pipeline for exploration geologists.
+      No command line needed. Load your drill data and geophysics, click Run, get
+      scored prospect maps loaded directly into QGIS with colour-coded symbology.
+      Proximity model (resource delineation) + Blind model (greenfield step-out).
+tracker=https://github.com/aire-exploration/bhumi3dmapper/issues
+repository=https://github.com/aire-exploration/bhumi3dmapper
+tags=geology,mining,prospectivity,geophysics,3D,voxel,exploration,drillhole
+homepage=https://aire-exploration.com/bhumi3dmapper
+category=Analysis
+icon=icon.png
+experimental=False
+deprecated=False
+server=False

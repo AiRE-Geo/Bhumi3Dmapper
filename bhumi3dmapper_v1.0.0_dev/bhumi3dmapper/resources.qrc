@@ -1,0 +1,6 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+  <qresource prefix="/plugins/bhumi3dmapper">
+    <file>icon.png</file>
+  </qresource>
+</RCC>
