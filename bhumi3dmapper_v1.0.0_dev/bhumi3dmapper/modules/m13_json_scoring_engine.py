@@ -229,9 +229,29 @@ class JsonScoringEngine:
         deposit_type: str,
         override_low_coverage: bool = False,
         validate_schema: bool = True,
+        structural_corridors_defined: bool = True,
     ):
+        """
+        Parameters
+        ----------
+        deposit_type : str
+            Machine identifier matching a model in manifest.json.
+        override_low_coverage : bool
+            Allow scoring when coverage < 25%. Default False.
+        validate_schema : bool
+            Validate model JSON against schema v2 on load. Default True.
+        structural_corridors_defined : bool
+            True if the user has defined structural corridors for their project
+            (StructuralConfig.corridors_defined() should be passed here).
+            Default True for backwards compatibility.
+            When False, the c6_structural_corridor → fault_proximity PARTIAL
+            bridge is demoted to MISSING at score time — the built-in Kayad
+            N28E/N315E geometry is not valid for greenfields reconnaissance.
+            (Dr. Prithvi ruling 2, BH-REM-P1 addendum 2026-04-17.)
+        """
         self.deposit_type = deposit_type
         self.override_low_coverage = override_low_coverage
+        self._structural_corridors_defined = structural_corridors_defined
 
         # Load model from shared repo (dataclass)
         self._model = load_deposit_model(deposit_type, validate=validate_schema)
@@ -239,6 +259,10 @@ class JsonScoringEngine:
         # Option A (Gap 2, BH-REM-P1): load raw JSON alongside the dataclass to access
         # schema v2 additive 3D fields (depth_extent, 3d_variant_key) which are not
         # reflected on EvidenceWeight. Build {layer_key: raw_weight_dict} lookup.
+        # SCHEMA_ROADMAP Option B (Phase 3): EvidenceWeight will carry depth_extent
+        # natively as a DepthExtent dataclass field. When Option B lands, replace
+        # self._raw_weights with direct w.depth_extent access in score_voxel().
+        # See AiRE-DepositModels/docs/SCHEMA_ROADMAP.md "Option B" section.
         entry = get_model_entry(deposit_type)
         raw_model_path = get_repo_root() / "models" / entry["file"]
         if not raw_model_path.exists():
@@ -323,6 +347,23 @@ class JsonScoringEngine:
 
             # Look up bridge
             bridge_entry = get_bridge_entry(shared_key)
+
+            # Dr. Prithvi ruling 2 (BH-REM-P1 addendum): demote c6→fault_proximity
+            # PARTIAL to MISSING when no user-defined structural corridors exist.
+            # The Kayad N28E/N315E default geometry is not valid for greenfields targets.
+            if (
+                bridge_entry is not None
+                and bridge_entry.bhumi_key == "c6_structural_corridor"
+                and not self._structural_corridors_defined
+            ):
+                warnings.append(
+                    "Bridge 'c6_structural_corridor' → 'fault_proximity' DEMOTED to "
+                    "MISSING: no user-defined structural corridors found in StructuralConfig. "
+                    "The built-in Kayad N28E/N315E geometry is not valid for this project's "
+                    "geology. Define project-specific corridors to re-enable this bridge. "
+                    "(Dr. Prithvi ruling 2, BH-REM-P1 addendum 2026-04-17)"
+                )
+                bridge_entry = None  # Treat as MISSING for this run
 
             if bridge_entry is None:
                 # MISSING bridge

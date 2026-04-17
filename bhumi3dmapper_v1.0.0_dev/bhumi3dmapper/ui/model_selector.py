@@ -182,11 +182,26 @@ class ModelSelectorWidget(QWidget):
     if _HAS_QT:
         model_selected = pyqtSignal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, structural_corridors_defined: bool = True):
+        """
+        Parameters
+        ----------
+        parent : QWidget, optional
+            Qt parent widget.
+        structural_corridors_defined : bool
+            Pass ``ProjectConfig.structural.corridors_defined()`` here.
+            When False, the c6_structural_corridor → fault_proximity PARTIAL
+            bridge is demoted to MISSING in the JSON scoring engine — the
+            built-in Kayad N28E/N315E geometry is not valid for projects that
+            have not defined their own structural corridors.
+            (Dr. Prithvi ruling 2, BH-REM-P1 addendum 2026-04-17.)
+            Default True for backwards compatibility / test contexts.
+        """
         if not _HAS_QT:
             return
         super().__init__(parent)
 
+        self._structural_corridors_defined = structural_corridors_defined
         self._current_deposit_type: Optional[str] = None
         self._current_coverage: Optional[dict] = None
         self._model_entries: List[dict] = []
@@ -346,7 +361,11 @@ class ModelSelectorWidget(QWidget):
                 from ..modules.m13_json_scoring_engine import JsonScoringEngine
             except ImportError:
                 from modules.m13_json_scoring_engine import JsonScoringEngine
-            engine = JsonScoringEngine(deposit_type, override_low_coverage=True)
+            engine = JsonScoringEngine(
+                deposit_type,
+                override_low_coverage=True,
+                structural_corridors_defined=self._structural_corridors_defined,
+            )
             report = engine.coverage_report
             self._current_coverage = report
             self._apply_coverage_ui(deposit_type, report)
