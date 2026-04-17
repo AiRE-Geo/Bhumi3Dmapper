@@ -41,6 +41,8 @@ class BridgeEntry:
     ----------
     bhumi_key : str
         Bhumi3D voxel evidence key (e.g., 'c4_gravity'). Empty string for MISSING.
+        For PARTIAL composite entries that are computed products, this field uses
+        the synthetic form 'keyA*keyB' to signal the computation required.
     shared_key : str
         AiRE shared-repo layer_key (e.g., 'grav_residual').
     bridge_type : str
@@ -48,6 +50,7 @@ class BridgeEntry:
     confidence : float
         0.0–1.0 semantic equivalence score. Applied as a weight multiplier
         when computing coverage_fraction. 1.0 = perfect match.
+        For composite PARTIAL entries, confidence = min(confidence of all factors).
     prithvi_approved : bool
         True only after Dr. Prithvi has confirmed geological equivalence.
         PARTIAL bridges with prithvi_approved=False trigger an extra warning.
@@ -56,6 +59,12 @@ class BridgeEntry:
     requires_cage_in_export : bool
         True if this evidence can only be provided via CAGE-IN's
         JC-TBD-EVIDENCESTACK-EXPORT API.
+    deposit_family_restriction : list[str] or None
+        If set, this bridge is only valid for models whose deposit family is in
+        this list. When the model family is NOT in the list, the bridge is treated
+        as MISSING for coverage and scoring purposes.
+        None means the bridge applies to all deposit families.
+        Example: ['hydrothermal_sedex', 'sedimentary'] restricts to SEDEX models.
     """
     bhumi_key: str
     shared_key: str
@@ -64,6 +73,7 @@ class BridgeEntry:
     prithvi_approved: bool
     notes: str
     requires_cage_in_export: bool = False
+    deposit_family_restriction: Optional[List[str]] = None
 
 
 # ── Bridge Table ──────────────────────────────────────────────────────────────
@@ -131,17 +141,20 @@ BRIDGE_TABLE: List[BridgeEntry] = [
         shared_key="litho_favourability",
         bridge_type="PARTIAL",
         confidence=0.65,
-        prithvi_approved=False,
+        prithvi_approved=True,
         notes=(
-            "PENDING DR. PRITHVI REVIEW. Bhumi c1_lithology scores host-rock "
+            "DR. PRITHVI APPROVED 2026-04-17 (BH-REM-P1 addendum), CONDITIONAL on "
+            "deposit_family_restriction enforcement. Bhumi c1_lithology scores host-rock "
             "favourability from Kayad SEDEX rock codes (QMS=1.0, AM=0.0, CSR=0.50, etc.). "
             "Shared-repo litho_favourability is generic geological host-rock favourability. "
             "Mapping is valid for SEDEX Pb-Zn targets where Kayad calibration applies. "
-            "Confidence degrades significantly for non-SEDEX deposit types: for orogenic_au "
-            "the rock code scheme must be recalibrated to greenstone/BIF/carbonaceous shale "
-            "hosts. USE WITH CAUTION for non-SEDEX scoring. Confidence 0.65 reflects "
-            "the SEDEX-specific calibration bias."
+            "Confidence degrades significantly for non-SEDEX deposit types: the rock code "
+            "scheme must be recalibrated to match greenstone/BIF/ultramafic/carbonaceous "
+            "shale hosts. ENGINEERING GUARD: deposit_family_restriction=['hydrothermal_sedex', "
+            "'sedimentary'] is set — for orogenic, magmatic, and supergene models this bridge "
+            "is treated as MISSING in get_coverage_report() and score_voxel()."
         ),
+        deposit_family_restriction=["hydrothermal_sedex", "sedimentary"],
     ),
 
     BridgeEntry(
@@ -149,18 +162,20 @@ BRIDGE_TABLE: List[BridgeEntry] = [
         shared_key="fault_proximity",
         bridge_type="PARTIAL",
         confidence=0.60,
-        prithvi_approved=False,
+        prithvi_approved=True,
         notes=(
-            "PENDING DR. PRITHVI REVIEW. SEMANTIC MISMATCH documented here. "
-            "Bhumi c6_structural_corridor models proximity to pre-defined structural "
-            "corridors (Kayad N28E/N315E shear geometry with plunge-corrected lateral "
-            "shift per 100m depth). Shared-repo fault_proximity is a simpler distance "
-            "to any mapped fault. Bhumi's signal is richer (models the known structural "
-            "regime) but less general (geometry must be pre-defined per project). For "
-            "greenfields targets without known corridor geometry, the Bhumi signal "
-            "degrades to 'proximity to the nearest assumed structure'. Confidence 0.60. "
-            "WARN user when this bridge fires for orogenic_au reconnaissance targets "
-            "where the structural corridor geometry is unknown."
+            "DR. PRITHVI APPROVED 2026-04-17 (BH-REM-P1 addendum), CONDITIONAL on "
+            "runtime StructuralConfig.corridors_defined() check. Bhumi c6_structural_corridor "
+            "models proximity to pre-defined structural corridors (Kayad N28E/N315E shear "
+            "geometry with plunge-corrected lateral shift per 100m depth). Shared-repo "
+            "fault_proximity is a simpler distance to any mapped fault. Bhumi's signal is "
+            "richer (models the known structural regime) but less general (geometry must be "
+            "pre-defined per project). For greenfields targets without known corridor "
+            "geometry, the Bhumi signal degrades to 'proximity to the nearest assumed "
+            "structure'. Confidence 0.60. ENGINEERING GUARD: in JsonScoringEngine, if "
+            "StructuralConfig.corridors_defined() returns False, this bridge is demoted to "
+            "MISSING at runtime and a UI warning is emitted. Coverage report assumes corridors "
+            "are defined; score_voxel() applies the runtime check."
         ),
     ),
 
@@ -492,6 +507,614 @@ BRIDGE_TABLE: List[BridgeEntry] = [
         ),
         requires_cage_in_export=True,
     ),
+
+    # ══ ENTRIES FOR LATERITE-NI AND NI-SULPHIDE ═══════════════════════════════
+    # Added BH-REM-P1 Gap 1 sprint (2026-04-17). These complete coverage of all
+    # 3 brainstorm-complete models (orogenic_au + laterite_ni + ni_sulphide).
+    # Each entry is model-agnostic — a single shared_key appears once regardless
+    # of how many deposit models use it.
+
+    # -- EMIT hyperspectral mineral abundance (both laterite_ni + ni_sulphide) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="emit_chlorite",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "EMIT L2B chlorite fractional abundance (ISS EMIT, ±52° latitude, ~60m). "
+            "Hyperspectral — 285 VSWIR bands. No 2D spectral inputs in Bhumi. "
+            "Used in laterite_ni (proxy for serpentine/chlorite in ultramafic saprolite, "
+            "weight 0.55) and ni_sulphide (ultramafic host ID, weight 0.55). "
+            "Import from CAGE-IN EMIT engine via JC-TBD-EVIDENCESTACK-EXPORT."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="emit_fe_oxide",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "EMIT L2B iron oxide fractional abundance. Hyperspectral — directly maps "
+            "goethite/hematite mineralogy of laterite cap or gossan at 60m. "
+            "Used in laterite_ni (weight 0.55) and ni_sulphide (weight 0.55). "
+            "Import from CAGE-IN EMIT engine. Note: more specific than broadband "
+            "FERRIC/GOSSAN spectral ratios — identifies mineralogy not just spectral ratio."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="emit_vermiculite",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "EMIT L2B vermiculite fractional abundance. Diagnostic of ultramafic "
+            "weathering profile development — vermiculite is a direct weathering product "
+            "of biotite and phlogopite in ultramafic rocks. Used in laterite_ni only "
+            "(weight 0.50). Hyperspectral — no 2D spectral inputs in Bhumi. "
+            "Import from CAGE-IN EMIT engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # -- ASTER / multispectral indices (laterite_ni + ni_sulphide) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="NDVI_ANOMALY",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Vegetation suppression index from multispectral NDVI. Captures barren "
+            "ferricrete duricrust and Ni/Cr phytotoxicity over ultramafic soils. "
+            "Used in laterite_ni (weight 0.70, primary geobotanical discriminant) and "
+            "ni_sulphide (weight 0.45, weaker phytotoxicity signal over gossan). "
+            "No multispectral inputs in Bhumi. Import from CAGE-IN optical engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="VIGS",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Vegetation Interference in Geological Spectra — captures transition zone "
+            "between barren laterite and surrounding vegetation. Secondary geobotanical "
+            "discriminant complementing NDVI_ANOMALY. Used in laterite_ni (weight 0.50) "
+            "and ni_sulphide (weight 0.40). No multispectral inputs in Bhumi. "
+            "Import from CAGE-IN optical engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="CI_REDEDGE",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Sentinel-2 red-edge chlorophyll index (705/740 nm). Detects Ni phytotoxicity-"
+            "induced chlorophyll reduction in tropical vegetation over laterite soils. "
+            "Highest spectral contrast for phytotoxicity signal among vegetation stress "
+            "indices. Used in laterite_ni (weight 0.50) and ni_sulphide (weight 0.35, "
+            "weaker signal). No multispectral inputs in Bhumi. "
+            "Import from CAGE-IN optical engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="GOETHITE",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "ASTER SWIR goethite index (B4/B2). Discriminates goethite (FeOOH, Ni-hosting "
+            "in limonite zone) from hematite (Fe2O3, barren duricrust). Key mineralogical "
+            "discriminant for laterite Ni deposit type. Used in laterite_ni (weight 0.70, "
+            "primary Ni-zone indicator) and ni_sulphide (weight 0.55, gossanous cap). "
+            "No multispectral inputs in Bhumi. Import from CAGE-IN ASTER engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="HEMATITE",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "ASTER hematite index (B2/B1). Pisolitic hematite duricrust caps mature "
+            "laterite profiles — indicates advanced laterite development but low ore grade "
+            "(<0.5% Ni in duricrust itself). Used in laterite_ni only (weight 0.40). "
+            "No multispectral inputs in Bhumi. Import from CAGE-IN ASTER engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="FERROUS",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Fe2+ absorption from fresh mafic-ultramafic minerals (olivine, pyroxene, "
+            "amphibole) at VNIR wavelengths. Identifies host lithology where not deeply "
+            "weathered. Used in ni_sulphide only (weight 0.50) — excluded from laterite_ni "
+            "because tropical laterite terrain rarely exposes fresh mafic rock. "
+            "Multispectral — no 2D spectral inputs in Bhumi. "
+            "Import from CAGE-IN optical/ASTER engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # -- DEM derivatives / geomorphic (laterite_ni only) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="slope_inv",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Inverted slope: 1 - normalise(slope_degrees). Low gradient favourable for "
+            "laterite profile preservation — laterite Ni deposits develop on peneplain "
+            "remnants and gentle interfluves (<5° optimal, <15° marginal). "
+            "DEM derivative — no DEM input in Bhumi. Used in laterite_ni only (weight 0.60). "
+            "Future BH-REM-Px: could be derived from publicly available SRTM/Copernicus DEM "
+            "if DEM import is added to Bhumi inputs. Note: slope_degrees appears as a "
+            "laterite_ni VETO layer (V6_steep_slope) but inverted slope is a positive weight."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="height_above_drainage",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Relative elevation above local drainage base level — higher values indicate "
+            "surfaces less subject to erosion and better preserved laterite profiles. "
+            "DEM + drainage network derivative. No DEM input in Bhumi. "
+            "Used in laterite_ni only (weight 0.55). Requires flow-routing analysis "
+            "(D8/D-infinity) from a DEM — not computable from drill or geophysics data."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="terrain_roughness_inv",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Inverted topographic roughness: 1 - normalise(std_dev_elevation_window). "
+            "Smooth peneplain surfaces indicate preserved laterite profile; rough, "
+            "dissected terrain indicates active erosion and profile truncation. "
+            "DEM derivative — no DEM input in Bhumi. Used in laterite_ni only (weight 0.45). "
+            "Future BH-REM-Px: derive from public DEM if DEM module added to Bhumi."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    # -- Composite keys: laterite_ni primaries --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="FERRIC_x_MG_OH",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "FERRIC * MG_OH co-occurrence composite. Both factors MISSING in Bhumi "
+            "(no multispectral inputs). The single most diagnostic spectral signature "
+            "for laterite Ni — Fe-oxide laterite cap over Mg-OH ultramafic saprolite. "
+            "Used in laterite_ni (weight 0.90, top composite) and ni_sulphide (weight 0.65). "
+            "Import both factors from CAGE-IN ASTER engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="mag_rtp_as_div_radio_k_pct",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Ratio composite: mag_rtp_as / radio_k_pct (AS/K ratio — mafic-ultramafic "
+            "discriminant). One factor is NATIVE (mag_rtp_as via c5_magnetics), but "
+            "radio_k_pct is MISSING (radiometrics not in Bhumi). Cannot compute the ratio "
+            "without both factors. Used in laterite_ni (weight 0.80) and ni_sulphide "
+            "(weight 0.75). Import radio_k_pct from CAGE-IN radiometrics engine to enable. "
+            "Note: not a PARTIAL upgrade because ratio with a missing denominator is "
+            "mathematically undefined — not just confidence-reduced."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="NDVI_ANOMALY_x_MG_OH",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "NDVI_ANOMALY * MG_OH composite: vegetation stress over ultramafic substrate. "
+            "Both factors MISSING (no multispectral inputs in Bhumi). "
+            "Used in laterite_ni only (weight 0.75). Import from CAGE-IN optical/ASTER engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="FERRIC_x_NDVI_ANOMALY",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "FERRIC * NDVI_ANOMALY composite: barren/stressed ferruginous laterite. "
+            "Both factors MISSING (no multispectral inputs in Bhumi). "
+            "Used in laterite_ni only (weight 0.65). Import from CAGE-IN ASTER engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="emit_chlorite_x_emit_fe_oxide",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "EMIT mineral-level product: chlorite * fe_oxide co-occurrence. "
+            "Hyperspectral equivalent of FERRIC_x_MG_OH at higher spectral fidelity. "
+            "Both factors MISSING (no hyperspectral inputs in Bhumi). "
+            "Used in laterite_ni only (weight 0.60). Import from CAGE-IN EMIT engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="GOETHITE_x_MG_OH",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "GOETHITE * MG_OH composite: goethite limonite cap over Mg-OH ultramafic saprolite. "
+            "More specific than FERRIC_x_MG_OH — goethite (not hematite) is the primary "
+            "Ni-hosting Fe-oxyhydroxide in the limonite zone. Both factors MISSING (no "
+            "multispectral inputs in Bhumi). Used in laterite_ni only (weight 0.80). "
+            "Import from CAGE-IN ASTER engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # -- Composite keys: ni_sulphide primaries --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="GOSSAN_x_mag_rtp_as",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "GOSSAN * mag_rtp_as composite: sulphide gossan at surface + pyrrhotite "
+            "magnetic anomaly at depth. Bull's-eye target for Ni-sulphide. GOSSAN is "
+            "MISSING (no multispectral inputs); mag_rtp_as is NATIVE via c5_magnetics. "
+            "Cannot form composite without GOSSAN factor. Used in ni_sulphide only "
+            "(weight 0.90, top composite). Import GOSSAN from CAGE-IN ASTER engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="MG_OH_x_mag_rtp_as",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "MG_OH * mag_rtp_as composite: ultramafic host rock (MG_OH) coincident with "
+            "magnetic anomaly (pyrrhotite). MG_OH is MISSING (no multispectral inputs); "
+            "mag_rtp_as is NATIVE via c5_magnetics. Cannot form composite without MG_OH. "
+            "Used in ni_sulphide only (weight 0.80). Import MG_OH from CAGE-IN ASTER engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="c4_gravity*c5_magnetics",
+        shared_key="grav_residual_x_mag_rtp_as",
+        bridge_type="PARTIAL",
+        confidence=0.85,
+        prithvi_approved=False,
+        notes=(
+            "UPGRADE OPPORTUNITY: grav_residual * mag_rtp_as. Both factors are NATIVE-bridged "
+            "in Bhumi (c4_gravity→grav_residual at 0.90, c5_magnetics→mag_rtp_as at 0.85). "
+            "Confidence = min(0.90, 0.85) = 0.85 (Amendment 2: min-of-factors rule). "
+            "Compute at score time as bhumi_evidence['c4_gravity'] * bhumi_evidence['c5_magnetics']. "
+            "Classic dual-geophysical bull's-eye for Ni-sulphide: dense ultramafic body "
+            "(gravity) with sulphide accumulation (magnetics). Used in ni_sulphide only "
+            "(weight 0.75). PENDING DR. PRITHVI SIGN-OFF on composite validity. "
+            "Phase 1: scoring engine skips this (bhumi_key is synthetic composite notation). "
+            "Phase 2: enable composite computation in score_voxel()."
+        ),
+    ),
+
+    BridgeEntry(
+        bhumi_key="c6_structural_corridor*c5_magnetics",
+        shared_key="fault_proximity_x_mag_rtp_as",
+        bridge_type="PARTIAL",
+        confidence=0.60,
+        prithvi_approved=False,
+        notes=(
+            "UPGRADE OPPORTUNITY: fault_proximity * mag_rtp_as. c5_magnetics→mag_rtp_as "
+            "is NATIVE at 0.85; c6_structural_corridor→fault_proximity is PARTIAL at 0.60. "
+            "Confidence = min(0.85, 0.60) = 0.60 (Amendment 2: min-of-factors rule). "
+            "Targets the conduit geometry: magnetic anomaly on a major structure = "
+            "conduit-hosted sulphide. Used in ni_sulphide only (weight 0.70). "
+            "PENDING DR. PRITHVI SIGN-OFF on composite validity AND on c6→fault_proximity "
+            "component (runtime corridors_defined() guard applies to this composite too). "
+            "Phase 1: scoring engine skips (synthetic bhumi_key). Phase 2: enable composite."
+        ),
+    ),
+
+    # ══ ENTRIES FOR GRAPHITE_FLAKE ════════════════════════════════════════════
+    # Added BH-REM-P1 Gap 1 sprint (2026-04-17). graphite_flake was brainstorm-
+    # completed in Session 4 (2026-04-17) simultaneously with this sprint.
+    # 13 new unique layer_keys not previously documented in BRIDGE_TABLE.
+
+    # -- EM / IP geophysical (graphite_flake only) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="em_conductivity",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Airborne time-domain or frequency-domain EM conductivity. THE PRIMARY "
+            "discovery tool for flake graphite — graphite conductivity 10³–10⁵ S/m "
+            "versus silicate host ~10⁻⁸ S/m (11–13 orders of magnitude contrast). "
+            "Balama (Mozambique) and Molo (Madagascar) both discovered by EM survey. "
+            "NOT in CAGE-IN EvidenceStack — Engineering ticket JC-TBD-EM-CONDUCTIVITY. "
+            "No Bhumi source: Bhumi has gravity, magnetics, and seismic — not EM. "
+            "graphite_flake model degrades gracefully (required: false) to radiometric/ "
+            "structural/spectral proxies when EM is absent."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="em_chargeability",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Induced polarisation (IP) chargeability. Graphite is an electronic "
+            "semiconductor generating IP chargeability anomalies in DCIP or TDEM "
+            "surveys. Complements em_conductivity: graphite is both conductive AND "
+            "chargeable. More relevant for ground-follow-up IP surveys than airborne "
+            "reconnaissance. NOT in CAGE-IN EvidenceStack and not in Bhumi. "
+            "graphite_flake only (weight 0.35). Ticket JC-TBD-EM-CONDUCTIVITY covers both."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # -- Geological capability gaps (graphite_flake only) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="metamorphic_grade",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Metamorphic grade eligibility filter. Flake graphite requires upper "
+            "amphibolite to granulite facies (Tmax ≥ 580 °C by RSCM geothermometry). "
+            "Greenschist-facies carbonaceous matter is turbostratic carbon, not graphite. "
+            "NOT in CAGE-IN EvidenceStack — Engineering ticket JC-TBD-METAMORPHIC-GRADE. "
+            "No Bhumi source. graphite_flake only (weight 0.80, highest-confidence "
+            "geological pre-condition). Interim proxy: litho_favourability trained on "
+            "published metamorphic terrane polygons (PARTIAL bridge, family-restricted)."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # -- Radiometric primaries (graphite_flake only) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="radio_th",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Thorium radiometric channel (ppm Th). Elevated Th in aluminous "
+            "high-grade metapelites from accessory monazite/xenotime/zircon. "
+            "Th is more immobile than U through upper amphibolite metamorphism "
+            "and is retained even in granulite residues. Preferred radiometric "
+            "discriminator for graphite_flake hosts. No airborne radiometrics in Bhumi. "
+            "graphite_flake only (weight 0.55). Distinct from radio_th_k (ratio): "
+            "radio_th is the raw Th channel. Import from CAGE-IN radiometrics engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # -- Spectral primaries (graphite_flake only) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="albedo_suppression",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Low surface albedo proxy for graphite-bearing outcrop. Graphite "
+            "reflectance < 0.05 across 0.4–2.5 µm darkens host rock surface. "
+            "Pre-computed as 1 − normalised_albedo (S2 Band 4 or Landsat OLI Band 4). "
+            "NOT equivalent to graphite mineral identification: EMIT L2B cannot identify "
+            "graphite (no VNIR-SWIR absorption features — flat, dark reflectance; "
+            "see graphite_flake model_notes.emit_graphite_capability_gap). "
+            "Requires multispectral optical input — not in Bhumi. "
+            "graphite_flake only (weight 0.60). Import from CAGE-IN optical engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="aster_tir_emissivity",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "ASTER TIR emissivity at B11 (8.625 µm). Graphite emissivity 0.97–0.98 "
+            "vs quartz-rich host 0.80–0.87 in reststrahlen region — contrast +0.07 to "
+            "+0.15 emissivity units. Detection threshold ~15 wt% TGC. NOT in CAGE-IN "
+            "EvidenceStack — Engineering ticket JC-TBD-ASTER-TIR-EMISSIVITY. "
+            "No Bhumi source. graphite_flake only (weight 0.55)."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # -- Geophysical primaries (graphite_flake only) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="mag_1vd",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Magnetic first vertical derivative (1VD). Used INVERTED in graphite_flake: "
+            "diamagnetic graphite produces low 1VD within host metapelite/gneiss. "
+            "Note: c8_mag_gradient is already NATIVE-bridged to mag_tilt (tilt derivative). "
+            "mag_1vd (vertical derivative of Vz or TMI) and mag_tilt are related but "
+            "mathematically distinct operators — cannot substitute one for the other. "
+            "Bhumi computes lateral gradient magnitude, not 1VD. MISSING for now. "
+            "graphite_flake only (weight 0.25 standalone; preferred in composite 0.45)."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    # -- Composite keys (graphite_flake only) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="em_conductivity_x_litho_favourability",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "TOP COMPOSITE for graphite_flake (weight 0.88). EM conductivity × litho "
+            "favourability — graphite conductivity signal confined to favourable "
+            "carbonaceous metapelite host. em_conductivity is MISSING (JC-TBD-EM-CONDUCTIVITY); "
+            "litho_favourability is PARTIAL (family-restricted). Cannot form composite "
+            "without em_conductivity. When EM is implemented, this will dominate the scorer. "
+            "graphite_flake only."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="radio_th_x_litho_favourability",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "radio_th × litho_favourability composite (graphite_flake, weight 0.68). "
+            "Elevated Th from aluminous metapelite accessory minerals co-located with "
+            "favourable carbonaceous host. radio_th is MISSING (no radiometrics in Bhumi). "
+            "Cannot form composite. Import radio_th from CAGE-IN radiometrics engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="geochem_pathfinder_x_litho_favourability",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "geochem_pathfinder × litho_favourability composite (graphite_flake, weight 0.62). "
+            "Graphite geochemical pathfinder suite (C_graphitic, V, Mo, S) co-located with "
+            "carbonaceous metapelite host. geochem_pathfinder is MISSING; litho_favourability "
+            "is PARTIAL. Cannot form composite. Import geochem from CAGE-IN geochemical engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="radio_th_k_x_fold_hinge_proximity",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "radio_th_k × fold_hinge_proximity composite (graphite_flake, weight 0.60). "
+            "Aluminous metapelite Th/K ratio coincident with fold hinge structural control. "
+            "Both factors MISSING (radio_th_k: radiometrics not in Bhumi; fold_hinge_proximity: "
+            "requires geological mapping input). Cannot form composite. Import from CAGE-IN."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="aster_tir_emissivity_x_albedo_suppression",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "aster_tir_emissivity × albedo_suppression composite (graphite_flake, weight 0.58). "
+            "Dual-physical graphite surface detection: TIR emissivity elevation × low visible "
+            "albedo. Both factors MISSING (aster_tir_emissivity: JC-TBD-ASTER-TIR-EMISSIVITY; "
+            "albedo_suppression: no multispectral in Bhumi). Import both from CAGE-IN."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="mag_1vd_x_litho_favourability",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "mag_1vd × litho_favourability composite (graphite_flake, weight 0.45). "
+            "Low magnetic 1VD (diamagnetic graphite body) filtered to lithologically "
+            "favourable positions. mag_1vd is MISSING (see standalone mag_1vd entry); "
+            "litho_favourability is PARTIAL (family-restricted). Cannot form composite "
+            "until mag_1vd is implemented in Bhumi (future DEM-free computation from "
+            "existing magnetic grid if 1VD filter is added to m10_depth_corrector)."
+        ),
+        requires_cage_in_export=False,
+    ),
 ]
 
 
@@ -565,7 +1188,22 @@ def get_bhumi_value(
     return bhumi_evidence.get(entry.bhumi_key)
 
 
-def get_coverage_report(model_weights: list) -> dict:
+def _is_bridge_active_for_family(entry: BridgeEntry, deposit_family: Optional[str]) -> bool:
+    """
+    Return True if the bridge applies to the given deposit family.
+
+    If the entry has no deposit_family_restriction, it always applies.
+    If deposit_family is None (caller did not specify), restriction is not enforced
+    (backwards compatibility).
+    """
+    if entry.deposit_family_restriction is None:
+        return True
+    if deposit_family is None:
+        return True  # No family specified — do not enforce (backwards compat)
+    return deposit_family in entry.deposit_family_restriction
+
+
+def get_coverage_report(model_weights: list, deposit_family: Optional[str] = None) -> dict:
     """
     Compute bridge coverage metrics for a list of EvidenceWeight objects.
 
@@ -576,6 +1214,12 @@ def get_coverage_report(model_weights: list) -> dict:
     ----------
     model_weights : list[EvidenceWeight]
         All weight entries from a loaded DepositModel.
+    deposit_family : str, optional
+        The deposit family of the model being scored (e.g., 'orogenic',
+        'magmatic', 'supergene', 'hydrothermal_sedex', 'sedimentary').
+        When provided, PARTIAL bridges with deposit_family_restriction set are
+        treated as MISSING if the family is not in the restriction list.
+        If None, family restriction is not enforced (backwards compatibility).
 
     Returns
     -------
@@ -603,6 +1247,11 @@ def get_coverage_report(model_weights: list) -> dict:
     for w in model_weights:
         total += w.weight
         entry = get_bridge_entry(w.layer_key)
+
+        # Apply deposit_family_restriction: demote out-of-family PARTIAL to MISSING
+        if entry is not None and not _is_bridge_active_for_family(entry, deposit_family):
+            entry = None  # Treat as MISSING for this deposit family
+
         if entry is None:
             missing_keys.append(w.layer_key)
             miss_entry = _MISSING_INDEX.get(w.layer_key)

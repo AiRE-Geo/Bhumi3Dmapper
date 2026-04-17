@@ -26,6 +26,7 @@ from bhumi3dmapper.core.evidence_key_bridge import (
     _SHARED_KEY_INDEX,
     _MISSING_INDEX,
 )
+from bhumi3dmapper.modules.m13_json_scoring_engine import compute_depth_factor
 
 
 # ── Bridge Table structural tests ──────────────────────────────────────────────
@@ -274,6 +275,15 @@ class TestEveryModelWeightHasASource:
         except Exception:
             return None
 
+    def _try_load_model_weights(self, deposit_type: str):
+        """Load weights for any deposit_type. Skip if repo unavailable."""
+        try:
+            from bhumi3dmapper.core.shared_repo_loader import load_deposit_model
+            model = load_deposit_model(deposit_type, validate=False)
+            return model.weights
+        except Exception:
+            return None
+
     def test_all_bridge_table_keys_are_non_empty(self):
         """Ensure no accidental empty shared_key in the table."""
         for entry in BRIDGE_TABLE:
@@ -285,24 +295,67 @@ class TestEveryModelWeightHasASource:
 
     def test_orogenic_au_weights_all_documented(self):
         """
-        Load orogenic_au.json and verify every layer_key appears in BRIDGE_TABLE.
-        This is the primary CI gate for BH-REM-P1.
+        Fast sanity check: load orogenic_au.json and verify every layer_key
+        appears in BRIDGE_TABLE. Kept as a quick single-model gate.
+        The full loop gate is test_all_brainstorm_complete_models_documented.
         """
         weights = self._try_load_orogenic_au_weights()
         if weights is None:
             pytest.skip("Shared repo not available in this environment")
 
         bridge_keys = self._get_all_bridge_keys()
-        undocumented = []
-        for w in weights:
-            if w.layer_key not in bridge_keys:
-                undocumented.append(w.layer_key)
+        undocumented = [w.layer_key for w in weights if w.layer_key not in bridge_keys]
 
         assert not undocumented, (
             f"The following orogenic_au layer_keys are NOT documented in BRIDGE_TABLE. "
             f"This is a scientific integrity defect — silent skips without records:\n"
             f"  {undocumented}\n"
             f"Add a BridgeEntry for each (NATIVE, PARTIAL, or MISSING with notes)."
+        )
+
+    def test_all_brainstorm_complete_models_documented(self):
+        """
+        BH-REM-P1 FULL CI GATE.
+
+        For EVERY deposit model with review_status='brainstorm_complete_*', every
+        layer_key in its weight list must appear in BRIDGE_TABLE (NATIVE, PARTIAL,
+        or MISSING with documented notes). An absent bridge is a defect — the weight
+        silently skips without any record.
+
+        This gate must pass before any brainstorm-complete model can be shipped.
+        Run: pytest -k test_all_brainstorm_complete_models_documented -v
+        """
+        try:
+            from bhumi3dmapper.core.shared_repo_loader import list_models, load_deposit_model
+        except Exception as exc:
+            pytest.skip(f"Shared repo unavailable: {exc}")
+
+        brainstorm_models = list_models(include_statuses=["brainstorm_complete_"])
+        if not brainstorm_models:
+            pytest.skip("No brainstorm-complete models found in manifest")
+
+        bridge_keys = self._get_all_bridge_keys()
+        failures: dict = {}  # {deposit_type: [undocumented_keys]}
+
+        for model_entry in brainstorm_models:
+            deposit_type = model_entry["deposit_type"]
+            weights = self._try_load_model_weights(deposit_type)
+            if weights is None:
+                continue  # Model file missing — separate test will catch this
+
+            undocumented = [w.layer_key for w in weights if w.layer_key not in bridge_keys]
+            if undocumented:
+                failures[deposit_type] = undocumented
+
+        assert not failures, (
+            "The following brainstorm-complete deposit models have layer_keys NOT "
+            "documented in BRIDGE_TABLE. Each is a scientific integrity defect — "
+            "silent weight skips with no record:\n"
+            + "\n".join(
+                f"  {dt}: {keys}"
+                for dt, keys in sorted(failures.items())
+            )
+            + "\nAdd a BridgeEntry for each (NATIVE, PARTIAL, or MISSING with notes)."
         )
 
     def test_native_confidence_is_plausible(self):
@@ -315,13 +368,29 @@ class TestEveryModelWeightHasASource:
                 )
 
     def test_partial_confidence_is_plausible(self):
-        """PARTIAL bridge confidence must be between 0.30 and 0.79."""
+        """
+        PARTIAL bridge confidence rules:
+        - Single-factor semantic-mismatch PARTIAL: confidence must be 0.30–0.79
+        - Composite PARTIAL (bhumi_key contains '*'): confidence = min(factor confidences),
+          which may exceed 0.79 when both factors have NATIVE bridges. Upper bound is 0.95
+          (not 1.0 — even perfectly-bridged composites carry residual uncertainty from
+          the product operation itself). Identified by '*' in bhumi_key field.
+        """
         for entry in BRIDGE_TABLE:
             if entry.bridge_type == "PARTIAL":
-                assert 0.30 <= entry.confidence <= 0.79, (
-                    f"PARTIAL bridge '{entry.shared_key}' has implausible "
-                    f"confidence {entry.confidence} (expected 0.30–0.79)"
-                )
+                is_composite = "*" in entry.bhumi_key
+                if is_composite:
+                    # Composite PARTIAL: min-of-factors rule; may exceed 0.79
+                    assert 0.30 <= entry.confidence <= 0.95, (
+                        f"Composite PARTIAL bridge '{entry.shared_key}' has implausible "
+                        f"confidence {entry.confidence} (expected 0.30–0.95 for composites)"
+                    )
+                else:
+                    # Single-factor semantic-mismatch PARTIAL: strict 0.30–0.79 ceiling
+                    assert 0.30 <= entry.confidence <= 0.79, (
+                        f"PARTIAL bridge '{entry.shared_key}' has implausible "
+                        f"confidence {entry.confidence} (expected 0.30–0.79 for single-factor PARTIALs)"
+                    )
 
 
 # ── JSON scoring engine tests ──────────────────────────────────────────────────
@@ -457,3 +526,167 @@ class TestSharedRepoLoader:
             assert model is not None
         except Exception as exc:
             pytest.skip(f"Shared repo unavailable or schema error: {exc}")
+
+
+# ── compute_depth_factor unit tests ───────────────────────────────────────────
+# Pure unit tests — no shared repo required.
+
+class TestComputeDepthFactor:
+    """
+    BH-REM-P1 Gap 2 — depth attenuation function unit tests.
+    These test compute_depth_factor() directly with synthetic raw weight dicts.
+    """
+
+    def test_no_depth_extent_returns_one(self):
+        """No depth_extent key → factor = 1.0 (no attenuation)."""
+        assert compute_depth_factor({}, z_mrl=0.0) == pytest.approx(1.0)
+        assert compute_depth_factor({}, z_mrl=-500.0) == pytest.approx(1.0)
+
+    def test_constant_attenuation_returns_one(self):
+        """z_attenuation='constant' → factor = 1.0 always."""
+        raw = {"depth_extent": {"z_attenuation": "constant"}}
+        assert compute_depth_factor(raw, z_mrl=0.0) == pytest.approx(1.0)
+        assert compute_depth_factor(raw, z_mrl=-1000.0) == pytest.approx(1.0)
+
+    def test_linear_attenuation_at_surface(self):
+        """Linear: at z_mrl=0 (surface), depth_m=0 → factor=1.0."""
+        raw = {"depth_extent": {"z_attenuation": "linear_to_zero_at_500m"}}
+        assert compute_depth_factor(raw, z_mrl=0.0) == pytest.approx(1.0)
+
+    def test_linear_attenuation_midpoint(self):
+        """Linear: at z_mrl=-250 (depth=250m), factor=0.5 for 500m range."""
+        raw = {"depth_extent": {"z_attenuation": "linear_to_zero_at_500m"}}
+        assert compute_depth_factor(raw, z_mrl=-250.0) == pytest.approx(0.5, rel=1e-4)
+
+    def test_linear_attenuation_at_zero_boundary(self):
+        """Linear: at z_mrl=-500 (depth=500m), factor=0.0."""
+        raw = {"depth_extent": {"z_attenuation": "linear_to_zero_at_500m"}}
+        assert compute_depth_factor(raw, z_mrl=-500.0) == pytest.approx(0.0, abs=1e-6)
+
+    def test_linear_attenuation_beyond_range_clamps(self):
+        """Linear: beyond range, factor clamped to 0.0 (not negative)."""
+        raw = {"depth_extent": {"z_attenuation": "linear_to_zero_at_500m"}}
+        assert compute_depth_factor(raw, z_mrl=-1000.0) == pytest.approx(0.0, abs=1e-6)
+
+    def test_exponential_attenuation_at_surface(self):
+        """Exponential: at z_mrl=0, factor=1.0 (exp(0)=1)."""
+        raw = {"depth_extent": {"z_attenuation": "exponential_decay_tau300m"}}
+        assert compute_depth_factor(raw, z_mrl=0.0) == pytest.approx(1.0)
+
+    def test_exponential_attenuation_at_one_tau(self):
+        """Exponential: at depth=tau, factor=exp(-1) ≈ 0.3679."""
+        raw = {"depth_extent": {"z_attenuation": "exponential_decay_tau300m"}}
+        factor = compute_depth_factor(raw, z_mrl=-300.0)
+        assert factor == pytest.approx(math.exp(-1.0), rel=1e-4)
+
+    def test_exponential_attenuation_decreases_with_depth(self):
+        """Exponential: deeper voxels have lower factors."""
+        raw = {"depth_extent": {"z_attenuation": "exponential_decay_tau500m"}}
+        f0 = compute_depth_factor(raw, z_mrl=0.0)
+        f100 = compute_depth_factor(raw, z_mrl=-100.0)
+        f500 = compute_depth_factor(raw, z_mrl=-500.0)
+        assert f0 > f100 > f500
+
+    def test_inverse_square_at_surface(self):
+        """Inverse square: at depth=0, factor=1.0."""
+        raw = {"depth_extent": {"z_attenuation": "inverse_square_from_surface_200m"}}
+        assert compute_depth_factor(raw, z_mrl=0.0) == pytest.approx(1.0)
+
+    def test_inverse_square_at_param_depth(self):
+        """Inverse square: at depth=param, factor=1/(1+1^2)=0.5."""
+        raw = {"depth_extent": {"z_attenuation": "inverse_square_from_surface_200m"}}
+        factor = compute_depth_factor(raw, z_mrl=-200.0)
+        assert factor == pytest.approx(0.5, rel=1e-4)
+
+    def test_positive_mrl_is_above_surface(self):
+        """Positive z_mrl (above-surface) → depth_m=0 → factor=1.0."""
+        raw = {"depth_extent": {"z_attenuation": "linear_to_zero_at_500m"}}
+        # z_mrl=+150 → above sea level → depth_m = max(0, -150) = 0
+        assert compute_depth_factor(raw, z_mrl=150.0) == pytest.approx(1.0)
+
+    def test_e2e_three_level_attenuation_top_greater_than_bottom(self):
+        """
+        E2E regression: 3-level voxel stack, linear attenuation 1000m.
+        Top level contribution > mid > bottom.
+        Satisfies Amendment 5 (addendum): depth-attenuation regression test.
+        """
+        raw = {"depth_extent": {"z_attenuation": "linear_to_zero_at_1000m"}}
+        f_top = compute_depth_factor(raw, z_mrl=-50.0)    # depth 50m
+        f_mid = compute_depth_factor(raw, z_mrl=-400.0)   # depth 400m
+        f_bot = compute_depth_factor(raw, z_mrl=-800.0)   # depth 800m
+        assert f_top > f_mid > f_bot, (
+            f"Expected top({f_top:.3f}) > mid({f_mid:.3f}) > bot({f_bot:.3f})"
+        )
+        assert f_top == pytest.approx(0.95, rel=1e-3)
+        assert f_mid == pytest.approx(0.60, rel=1e-3)
+        assert f_bot == pytest.approx(0.20, rel=1e-3)
+
+
+# ── deposit_family_restriction tests ──────────────────────────────────────────
+
+class TestDepositFamilyRestriction:
+    """
+    Amendment 1 (addendum): deposit_family_restriction on BridgeEntry.
+    c1_lithology → litho_favourability is PARTIAL only for hydrothermal_sedex
+    and sedimentary families. For orogenic/magmatic/supergene it is treated
+    as MISSING in get_coverage_report().
+    """
+
+    def _make_weight(self, layer_key, weight):
+        class _W:
+            pass
+        w = _W()
+        w.layer_key = layer_key
+        w.weight = weight
+        return w
+
+    def test_litho_bridge_has_family_restriction(self):
+        """litho_favourability entry must have deposit_family_restriction set."""
+        entry = get_bridge_entry("litho_favourability")
+        assert entry is not None
+        assert hasattr(entry, "deposit_family_restriction")
+        assert entry.deposit_family_restriction is not None
+        assert "hydrothermal_sedex" in entry.deposit_family_restriction
+
+    def test_litho_in_sedex_family_is_partial(self):
+        """For hydrothermal_sedex family, litho_favourability is PARTIAL (bridged)."""
+        weights = [self._make_weight("litho_favourability", 0.65)]
+        report = get_coverage_report(weights, deposit_family="hydrothermal_sedex")
+        assert "litho_favourability" in report["partial_keys"]
+        assert "litho_favourability" not in report["missing_keys"]
+        assert report["matched_weight_mass"] > 0.0
+
+    def test_litho_in_orogenic_family_is_missing(self):
+        """For orogenic family, litho_favourability is treated as MISSING."""
+        weights = [self._make_weight("litho_favourability", 0.65)]
+        report = get_coverage_report(weights, deposit_family="orogenic")
+        assert "litho_favourability" in report["missing_keys"]
+        assert "litho_favourability" not in report["partial_keys"]
+        assert report["matched_weight_mass"] == pytest.approx(0.0)
+
+    def test_litho_in_magmatic_family_is_missing(self):
+        """For magmatic family, litho_favourability is treated as MISSING."""
+        weights = [self._make_weight("litho_favourability", 0.65)]
+        report = get_coverage_report(weights, deposit_family="magmatic")
+        assert "litho_favourability" in report["missing_keys"]
+
+    def test_litho_in_supergene_family_is_missing(self):
+        """For supergene family (laterite_ni), litho_favourability is treated as MISSING."""
+        weights = [self._make_weight("litho_favourability", 0.65)]
+        report = get_coverage_report(weights, deposit_family="supergene")
+        assert "litho_favourability" in report["missing_keys"]
+
+    def test_litho_with_no_family_is_partial(self):
+        """When no family is given, family restriction is not enforced (backwards compat)."""
+        weights = [self._make_weight("litho_favourability", 0.65)]
+        report = get_coverage_report(weights)  # no deposit_family
+        assert "litho_favourability" in report["partial_keys"]
+
+    def test_native_bridges_unaffected_by_family(self):
+        """Native bridges have no family restriction — unaffected by deposit_family."""
+        weights = [self._make_weight("grav_residual", 0.90)]
+        for family in ["orogenic", "magmatic", "supergene", "hydrothermal_sedex"]:
+            report = get_coverage_report(weights, deposit_family=family)
+            assert "grav_residual" in report["native_keys"], (
+                f"grav_residual should be NATIVE for family '{family}'"
+            )
