@@ -1,0 +1,58 @@
+{
+  "project_name": "Complex Test Bed (SEDEX with curving holes)",
+  "project_description": "Synthetic SEDEX ore lens with 80 deviated drill holes. Tests desurvey correctness and full pipeline.",
+  "deposit_type": "SEDEX Pb-Zn",
+  "location": "Synthetic complex test bed",
+  "crs_epsg": 32643,
+  "grid": {
+    "xmin": 469500.0,
+    "ymin": 2935000.0,
+    "cell_size_m": 5.0,
+    "nx": 100,
+    "ny": 100,
+    "epsg": 32643,
+    "z_top_mrl": 425.0,
+    "z_bot_mrl": 350.0,
+    "dz_m": 25.0
+  },
+  "drill": {
+    "collar_csv": "E:\\MPXG Exploration Dropbox\\amit tripathi\\CAGE-INdevelopment\\AiRE-QGIS-PluginRepository\\Bhumi3DMapper\\bhumi3dmapper_v1.0.0_dev\\bhumi3dmapper\\examples\\complex_testbed\\data\\collar.csv",
+    "litho_csv": "E:\\MPXG Exploration Dropbox\\amit tripathi\\CAGE-INdevelopment\\AiRE-QGIS-PluginRepository\\Bhumi3DMapper\\bhumi3dmapper_v1.0.0_dev\\bhumi3dmapper\\examples\\complex_testbed\\data\\litho.csv",
+    "assay_csv": "E:\\MPXG Exploration Dropbox\\amit tripathi\\CAGE-INdevelopment\\AiRE-QGIS-PluginRepository\\Bhumi3DMapper\\bhumi3dmapper_v1.0.0_dev\\bhumi3dmapper\\examples\\complex_testbed\\data\\assay.csv",
+    "survey_csv": "E:\\MPXG Exploration Dropbox\\amit tripathi\\CAGE-INdevelopment\\AiRE-QGIS-PluginRepository\\Bhumi3DMapper\\bhumi3dmapper_v1.0.0_dev\\bhumi3dmapper\\examples\\complex_testbed\\data\\survey.csv",
+    "column_mapping": {
+      "col_bhid": "HOLE_ID",
+      "col_xcollar": "EAST",
+      "col_ycollar": "NORTH",
+      "col_zcollar": "RL",
+      "col_depth": "MAX_DEPTH",
+      "col_from": "FROM_M",
+      "col_to": "TO_M",
+      "col_rockcode": "ROCK_TYPE",
+      "col_azimuth": "AZIMUTH",
+      "col_dip": "INCL",
+      "col_zn": "Zn_pct",
+      "col_pb": "Pb_pct"
+    }
+  },
+  "geophysics": {
+    "gravity_folder": "E:\\MPXG Exploration Dropbox\\amit tripathi\\CAGE-INdevelopment\\AiRE-QGIS-PluginRepository\\Bhumi3DMapper\\bhumi3dmapper_v1.0.0_dev\\bhumi3dmapper\\examples\\complex_testbed\\geophysics\\gravity",
+    "magnetics_folder": "E:\\MPXG Exploration Dropbox\\amit tripathi\\CAGE-INdevelopment\\AiRE-QGIS-PluginRepository\\Bhumi3DMapper\\bhumi3dmapper_v1.0.0_dev\\bhumi3dmapper\\examples\\complex_testbed\\geophysics\\magnetics",
+    "gravity_pixel_size_m": 5.0,
+    "magnetics_pixel_size_m": 50.0
+  },
+  "ore_polygons": {
+    "polygon_folder": "E:\\MPXG Exploration Dropbox\\amit tripathi\\CAGE-INdevelopment\\AiRE-QGIS-PluginRepository\\Bhumi3DMapper\\bhumi3dmapper_v1.0.0_dev\\bhumi3dmapper\\examples\\complex_testbed\\ore_polygons",
+    "mrl_pattern": "(-?\\d+)"
+  },
+  "block_model": {
+    "domain_files": {
+      "main_lens": "E:\\MPXG Exploration Dropbox\\amit tripathi\\CAGE-INdevelopment\\AiRE-QGIS-PluginRepository\\Bhumi3DMapper\\bhumi3dmapper_v1.0.0_dev\\bhumi3dmapper\\examples\\complex_testbed\\block_model\\main_lens.csv",
+      "deep_extension": "E:\\MPXG Exploration Dropbox\\amit tripathi\\CAGE-INdevelopment\\AiRE-QGIS-PluginRepository\\Bhumi3DMapper\\bhumi3dmapper_v1.0.0_dev\\bhumi3dmapper\\examples\\complex_testbed\\block_model\\deep_extension.csv"
+    }
+  },
+  "outputs": {
+    "output_dir": "E:\\MPXG Exploration Dropbox\\amit tripathi\\CAGE-INdevelopment\\AiRE-QGIS-PluginRepository\\Bhumi3DMapper\\bhumi3dmapper_v1.0.0_dev\\bhumi3dmapper\\examples\\complex_testbed\\outputs",
+    "project_name": "ComplexTestBed"
+  }
+}

@@ -18,7 +18,45 @@ class ConfigWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._config = None
+        self._deposit_type = 'generic'
         self._setup_ui()
+        self._apply_tooltips()  # JC-30 — wire geological tooltips
+
+    def _on_deposit_changed(self, new_type: str):
+        """JC-30 — refresh tooltips when user picks different deposit type."""
+        self._deposit_type = new_type or 'generic'
+        self._apply_tooltips()
+
+    def _apply_tooltips(self):
+        """JC-30 — populate setToolTip on every widget from core/tooltips.json.
+        Refreshes when deposit type changes."""
+        try:
+            try:
+                from ..core.tooltips import get_tooltip
+            except ImportError:
+                from core.tooltips import get_tooltip
+        except Exception:
+            return  # tooltip file missing; silently skip
+        dt = self._deposit_type or 'generic'
+
+        def tt(param):
+            t = get_tooltip(param, dt)
+            return t if t else None
+
+        # Apply where we have documented parameters
+        mapping = [
+            (self.deposit_type, 'deposit_type'),
+            (self.crs_epsg, 'crs_epsg'),
+            (self.grid_nx, 'grid_nx'),
+            (self.grid_ny, 'grid_ny'),
+            (self.grid_cell, 'grid_cell_size'),
+            (self.grid_ztop, 'grid_z_top'),
+            (self.grid_zbot, 'grid_z_bot'),
+        ]
+        for widget, param in mapping:
+            t = tt(param)
+            if t:
+                widget.setToolTip(t)
 
     def _setup_ui(self):
         scroll = QScrollArea()
@@ -38,6 +76,8 @@ class ConfigWidget(QWidget):
                                      'Epithermal Au', 'IOCG', 'Other'])
         self.deposit_type.setEditable(True)
         self.deposit_type.setToolTip(tr('Deposit type controls default scoring parameters'))
+        # JC-30 — refresh tooltips when deposit type changes
+        self.deposit_type.currentTextChanged.connect(self._on_deposit_changed)
         fl.addRow(tr('Deposit type:'), self.deposit_type)
         self.crs_epsg = QSpinBox()
         self.crs_epsg.setRange(1000, 99999)
@@ -134,6 +174,8 @@ class ConfigWidget(QWidget):
     def load_from_config(self, cfg):
         """Populate form from a ProjectConfig object."""
         self._config = cfg
+        self._deposit_type = cfg.deposit_type or 'generic'
+        self._apply_tooltips()  # refresh for new deposit type
         self.proj_name.setText(cfg.project_name)
         idx = self.deposit_type.findText(cfg.deposit_type)
         if idx >= 0:

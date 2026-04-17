@@ -117,10 +117,21 @@ class RunScoringAlgorithm(QgsProcessingAlgorithm):
             except ImportError:
                 pass
 
-            # Drill lookups
+            # Drill lookups — JC-07 pass survey_df for desurvey if available
             feedback.setProgress(15)
             dp = DrillProcessor(cfg)
-            dp.build_lookups(collar_df, litho_df)
+            survey_df = None
+            try:
+                if cfg.drill.survey_csv:
+                    survey_df = loader.load_survey()
+            except Exception as e:
+                feedback.pushWarning(f'Survey data not loaded: {e}. '
+                                      f'Falling back to vertical projection.')
+            dp.build_lookups(collar_df, litho_df, survey_df=survey_df)
+            if getattr(dp, '_desurvey_used', False):
+                feedback.pushInfo('  ✓ Desurvey applied — using true 3D positions (JC-07)')
+            else:
+                feedback.pushInfo('  ℹ No survey data — using vertical projection from collars')
 
             # Geophysics (already preloaded above for DQ checks — reuse)
             feedback.setProgress(25)
