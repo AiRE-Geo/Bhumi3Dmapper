@@ -127,6 +127,24 @@ class StructuralConfig:
     # Corridor proximity scoring thresholds (m from axis)
     score_breaks_m: List[float] = field(default_factory=lambda: [75, 150, 300, 500])
     score_values: List[float] = field(default_factory=lambda: [1.00, 0.80, 0.55, 0.30, 0.10])
+    # True when the user has explicitly configured corridors for their project.
+    # False = only the built-in Kayad N28E/N315E defaults are present.
+    # JsonScoringEngine checks this before accepting the c6→fault_proximity PARTIAL bridge:
+    # if False, the bridge is demoted to MISSING for that run (Dr. Prithvi ruling 2,
+    # BH-REM-P1 addendum 2026-04-17).
+    user_defined: bool = False
+
+    def corridors_defined(self) -> bool:
+        """
+        Return True if the user has explicitly defined structural corridors
+        for this project (not just the Kayad built-in defaults).
+
+        JsonScoringEngine uses this to decide whether to honour the
+        c6_structural_corridor → fault_proximity PARTIAL bridge.
+        When False, that bridge is demoted to MISSING at score time — the
+        Kayad geometry is not valid for greenfields reconnaissance targets.
+        """
+        return self.user_defined
 
 
 @dataclass

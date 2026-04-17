@@ -457,6 +457,71 @@ class TestJsonScoringEngine:
         assert isinstance(summary, str)
         assert "orogenic_au" in summary
 
+    def test_corridors_defined_true_uses_fault_proximity_bridge(self):
+        """
+        Dr. Prithvi ruling 2 — positive case.
+        When structural_corridors_defined=True, the c6→fault_proximity bridge
+        is honoured and c6_structural_corridor contributes to the score.
+        """
+        try:
+            from bhumi3dmapper.modules.m13_json_scoring_engine import JsonScoringEngine
+            engine = JsonScoringEngine(
+                "orogenic_au",
+                override_low_coverage=True,
+                structural_corridors_defined=True,
+            )
+        except Exception as exc:
+            pytest.skip(f"Shared repo unavailable: {exc}")
+
+        evidence = {"c6_structural_corridor": 0.80}
+        report = engine.score_voxel(evidence, z_mrl=0.0)
+        # fault_proximity should appear in partial contributions (not skipped)
+        partial_keys = [c.shared_key for c in report.contributions if c.bridge_type == "PARTIAL" and not c.skipped]
+        # fault_proximity bridge is PARTIAL at confidence 0.60; with evidence provided it should contribute
+        # (Note: it might be in skipped if no evidence value, but we provided c6_structural_corridor=0.80)
+        contributing = [c for c in report.contributions
+                        if c.shared_key == "fault_proximity" and not c.skipped]
+        assert contributing, (
+            "fault_proximity should contribute when c6_structural_corridor evidence "
+            "is provided and structural_corridors_defined=True"
+        )
+        assert contributing[0].weighted_score > 0.0
+
+    def test_corridors_not_defined_demotes_fault_proximity_to_missing(self):
+        """
+        Dr. Prithvi ruling 2 — demotion case.
+        When structural_corridors_defined=False, the c6→fault_proximity bridge
+        is demoted to MISSING and fault_proximity is skipped with a warning.
+        """
+        try:
+            from bhumi3dmapper.modules.m13_json_scoring_engine import JsonScoringEngine
+            engine = JsonScoringEngine(
+                "orogenic_au",
+                override_low_coverage=True,
+                structural_corridors_defined=False,
+            )
+        except Exception as exc:
+            pytest.skip(f"Shared repo unavailable: {exc}")
+
+        evidence = {"c6_structural_corridor": 0.80, "c4_gravity": 0.70}
+        report = engine.score_voxel(evidence, z_mrl=0.0)
+
+        # fault_proximity must be skipped
+        fp_contributions = [c for c in report.contributions if c.shared_key == "fault_proximity"]
+        assert fp_contributions, "fault_proximity should appear in contributions"
+        fp = fp_contributions[0]
+        assert fp.skipped, "fault_proximity must be skipped when corridors_defined=False"
+        assert fp.skip_reason == "MISSING_BRIDGE", (
+            f"Expected skip_reason='MISSING_BRIDGE', got '{fp.skip_reason}'"
+        )
+
+        # Warning must mention the demotion
+        demotion_warnings = [w for w in report.warnings if "DEMOTED" in w]
+        assert demotion_warnings, (
+            "score_voxel() must emit a DEMOTED warning when fault_proximity bridge "
+            "is suppressed due to undefined corridors"
+        )
+
 
 # ── Shared repo loader tests ───────────────────────────────────────────────────
 
