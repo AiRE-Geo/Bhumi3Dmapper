@@ -353,6 +353,18 @@ class ProjectConfig:
     created_date: str = ""
     version: str = "1.0"
 
+    # ── Two-engine architecture (Session 3, 2026-04-17) ──────────────────────
+    # scoring_engine: 'kayad' = Kayad c-criterion engine (brownfields, Engine 1)
+    #                 'json_model' = shared-repo JSON WLC engine (recon, Engine 2)
+    scoring_engine: str = "kayad"
+    # deposit_type for the JSON engine (shared-repo machine identifier)
+    # e.g., 'orogenic_au', 'ni_sulphide'. Empty = use deposit_type field above.
+    json_model_deposit_type: str = ""
+    # Optional: override shared repo path (leave empty for auto-resolve)
+    shared_repo_path: str = ""
+    # Allow scoring even when evidence coverage < 25% (JSON engine only)
+    override_low_coverage: bool = False
+
     grid:         GridConfig         = field(default_factory=GridConfig)
     drill:        DrillDataConfig     = field(default_factory=DrillDataConfig)
     lithology:    LithologyConfig     = field(default_factory=LithologyConfig)
