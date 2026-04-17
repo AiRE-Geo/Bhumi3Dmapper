@@ -57,6 +57,9 @@ class DrillDataConfig:
     ore_threshold_pct: float = 2.0
     # Max search radius for nearest-hole assignment (m)
     hole_search_radius_m: float = 300.0
+    # Custom column mapping — overrides col_* defaults when set (JC-24)
+    # Format: {'col_bhid': 'HOLE_ID', 'col_xcollar': 'EAST', ...}
+    column_mapping: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

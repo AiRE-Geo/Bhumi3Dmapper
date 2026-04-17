@@ -62,10 +62,91 @@ class WelcomePage(QWizardPage):
         row.addWidget(btn_new)
         layout.addLayout(row)
 
+        # JC-23 — Scan Project Folder (autodiscovery)
+        btn_scan = QPushButton(tr('🔍 Scan Project Folder (auto-detect data)'))
+        btn_scan.setToolTip(tr(
+            'Point at a project folder — the tool will scan for drill CSVs, '
+            'geophysics TIFs, and ore polygons using common naming conventions.'))
+        btn_scan.clicked.connect(self._scan_folder)
+        layout.addWidget(btn_scan)
+
+        # JC-26 — Try Example Project (bundled synthetic SEDEX)
+        btn_example = QPushButton(tr('🎓 Try Example Project (30 seconds)'))
+        btn_example.setToolTip(tr(
+            'Loads a synthetic SEDEX Pb-Zn dataset and runs the full pipeline. '
+            'Verifies the tool works on your machine. Results marked EXAMPLE DATA.'))
+        btn_example.clicked.connect(self._try_example)
+        layout.addWidget(btn_example)
+
         self.status_label = QLabel('')
+        self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 
         self.registerField('config_path*', self.path_edit)
+
+    def _scan_folder(self):
+        """JC-23 — Scan a folder for project data using autodiscovery."""
+        folder = QFileDialog.getExistingDirectory(
+            self, tr('Select your project folder'))
+        if not folder:
+            return
+        try:
+            from ..modules.m08_autodiscover import autodiscover, apply_to_config
+            from ..core.config import ProjectConfig
+            result = autodiscover(folder)
+            # Create new config, apply discoveries
+            cfg = ProjectConfig()
+            cfg.project_name = os.path.basename(folder) or 'Scanned Project'
+            changes = apply_to_config(cfg, result)
+            if not changes:
+                QMessageBox.information(self, 'Bhumi3DMapper',
+                    tr('No recognised files found in this folder.\n'
+                       'Expected structure: drillholes/*.csv, geophysics/gravity/*.tif, etc.'))
+                return
+            # Save config next to the folder
+            import os.path as osp
+            cfg_path = osp.join(folder, 'bhumi3d_config.json')
+            cfg.to_json(cfg_path)
+            self.path_edit.setText(cfg_path)
+            summary = '✓ Discovered:\n' + '\n'.join(f'  • {c}' for c in changes)
+            if result.get('warnings'):
+                summary += '\n\n⚠ Warnings:\n' + '\n'.join(f'  • {w}' for w in result['warnings'])
+            if result.get('ambiguous'):
+                summary += '\n\n❓ Multiple candidates found (edit config to resolve):\n'
+                for amb in result['ambiguous']:
+                    summary += f"  • {amb['field']}: {len(amb['candidates'])} files\n"
+            self.status_label.setText(summary)
+        except Exception as e:
+            try:
+                from ..core.errors import translate
+                ue = translate(e, context='folder scan')
+                QMessageBox.warning(self, 'Bhumi3DMapper',
+                    f"{ue.message}\n\n{ue.suggestion}")
+            except Exception:
+                QMessageBox.warning(self, 'Bhumi3DMapper', str(e))
+
+    def _try_example(self):
+        """JC-26 — Copy and load the bundled example project."""
+        target = QFileDialog.getExistingDirectory(
+            self, tr('Where to place the example? (a subfolder will be created)'))
+        if not target:
+            return
+        try:
+            from ..modules.m11_example import copy_example_project
+            cfg_path = copy_example_project(target)
+            self.path_edit.setText(cfg_path)
+            self.status_label.setText(tr(
+                f'✓ Example project ready at: {cfg_path}\n'
+                f'⚠️ EXAMPLE DATA — outputs will be clearly marked. '
+                f'Click Next to continue.'))
+        except Exception as e:
+            try:
+                from ..core.errors import translate
+                ue = translate(e, context='example project copy')
+                QMessageBox.warning(self, 'Bhumi3DMapper',
+                    f"{ue.message}\n\n{ue.suggestion}")
+            except Exception:
+                QMessageBox.warning(self, 'Bhumi3DMapper', str(e))
 
     def _browse_config(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -87,7 +168,13 @@ class WelcomePage(QWizardPage):
                     tr(f'✓ Template created: {os.path.basename(path)}\n'
                        f'  Edit data paths in the JSON, then proceed.'))
             except Exception as e:
-                QMessageBox.warning(self, 'Error', str(e))
+                try:
+                    from ..core.errors import translate
+                    ue = translate(e, context='new config creation')
+                    QMessageBox.warning(self, 'Bhumi3DMapper',
+                        f"{ue.message}\n\n{ue.suggestion}")
+                except Exception:
+                    QMessageBox.warning(self, 'Error', str(e))
 
 
 class DataPage(QWizardPage):

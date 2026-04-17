@@ -69,18 +69,66 @@ class RunScoringAlgorithm(QgsProcessingAlgorithm):
             collar_df = loader.load_collar()
             litho_df  = loader.load_litho()
             ore_df    = loader.load_ore_centroids()
+            assay_df = None
+            try:
+                if cfg.drill.assay_csv:
+                    assay_df = loader.load_assay()
+            except Exception:
+                pass
 
             if feedback.isCanceled(): return {}
+
+            # JC-28 — Data Quality Hard Gate
+            feedback.setProgress(10)
+            feedback.pushInfo('Running data quality checks (JC-28 hard gate)…')
+            try:
+                from ..modules.m12_data_quality import run_all_checks
+                grav_preload = loader.load_gravity()
+                mag_preload = loader.load_magnetics()
+                dq_report = run_all_checks(cfg,
+                    collar_df=collar_df, litho_df=litho_df, assay_df=assay_df,
+                    grav_grids=grav_preload, mag_grids=mag_preload)
+                feedback.pushInfo(f'  DQ: {dq_report.summary()}')
+                for issue in dq_report.issues:
+                    icon = {'info':'ℹ','warning':'⚠','critical':'❗'}.get(issue.severity, '?')
+                    feedback.pushInfo(f'  {icon} [{issue.category}] {issue.title}')
+                    if issue.details:
+                        feedback.pushInfo(f'      {issue.details}')
+                    if issue.action:
+                        feedback.pushInfo(f'      → {issue.action}')
+                if dq_report.blocks_advance:
+                    feedback.reportError(tr(
+                        'Data quality check found critical issues that block scoring. '
+                        'Fix the data and re-run. See the log above for details.'),
+                        fatalError=True)
+                    return {self.RESULT: 'DQ_FAILED'}
+            except ImportError:
+                feedback.pushWarning('Data quality module not available, skipping gate')
+
+            # JC-25 — Post-load deposit sanity check
+            try:
+                from ..modules.m10_sanity import run_all_sanity_checks
+                warnings_list = run_all_sanity_checks(cfg, litho_df)
+                for w in warnings_list:
+                    icon = {'info':'ℹ','warning':'⚠','critical':'❗'}.get(w.severity, '?')
+                    feedback.pushInfo(f'  {icon} Sanity: {w.message}')
+                    if w.suggestion:
+                        feedback.pushInfo(f'      → {w.suggestion}')
+            except ImportError:
+                pass
 
             # Drill lookups
             feedback.setProgress(15)
             dp = DrillProcessor(cfg)
             dp.build_lookups(collar_df, litho_df)
 
-            # Geophysics
+            # Geophysics (already preloaded above for DQ checks — reuse)
             feedback.setProgress(25)
             gp = GeophysicsProcessor(cfg)
-            gp.load(loader.load_gravity(), loader.load_magnetics())
+            try:
+                gp.load(grav_preload, mag_preload)
+            except NameError:
+                gp.load(loader.load_gravity(), loader.load_magnetics())
 
             if feedback.isCanceled(): return {}
 
@@ -166,9 +214,17 @@ class RunScoringAlgorithm(QgsProcessingAlgorithm):
             return {self.RESULT: f'OK: {len(z_levels)} levels'}
 
         except Exception as e:
-            feedback.reportError(tr(f'Scoring failed: {e}'), fatalError=True)
-            feedback.pushWarning(traceback.format_exc())
-            return {self.RESULT: f'ERROR: {e}'}
+            # JC-27 — translate to plain-language error for user
+            try:
+                from ..core.errors import translate, format_for_display
+                ue = translate(e, context='scoring pipeline')
+                feedback.reportError(format_for_display(ue), fatalError=True)
+                feedback.pushWarning(f'Technical details:\n{traceback.format_exc()}')
+                return {self.RESULT: f'ERROR: {ue.message}'}
+            except Exception:
+                feedback.reportError(tr(f'Scoring failed: {e}'), fatalError=True)
+                feedback.pushWarning(traceback.format_exc())
+                return {self.RESULT: f'ERROR: {e}'}
 
     def name(self):           return 'runscoring'
     def displayName(self):    return tr('2 — Run Prospectivity Scoring')

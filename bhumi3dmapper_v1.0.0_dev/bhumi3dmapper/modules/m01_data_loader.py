@@ -28,6 +28,49 @@ except ImportError:
     from core.config import ProjectConfig, DrillDataConfig, GeophysicsConfig
 
 
+def _detect_encoding(path: str) -> str:
+    """
+    Try common encodings until one works. Returns encoding name.
+    Prefers charset-normalizer if installed, else heuristic trial.
+    """
+    try:
+        with open(path, 'rb') as f:
+            raw = f.read(min(100_000, os.path.getsize(path)))
+    except Exception:
+        return 'utf-8'
+
+    # Try charset-normalizer (optional, best quality)
+    try:
+        from charset_normalizer import from_bytes
+        result = from_bytes(raw).best()
+        if result and result.encoding:
+            return result.encoding
+    except ImportError:
+        pass
+
+    # Fallback: trial common encodings
+    for enc in ['utf-8-sig', 'utf-8', 'cp1252', 'latin-1', 'shift_jis', 'utf-16']:
+        try:
+            raw.decode(enc)
+            return enc
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+    return 'latin-1'  # always decodes something
+
+
+def _read_csv_smart(path: str, **kwargs) -> 'pd.DataFrame':
+    """Read CSV with auto-detected encoding. Raises clear error on failure."""
+    enc = _detect_encoding(path)
+    try:
+        return pd.read_csv(path, encoding=enc, **kwargs)
+    except UnicodeDecodeError as e:
+        raise ValueError(
+            f"Cannot read {os.path.basename(path)} — unusual text encoding.\n"
+            f"Tried encoding '{enc}' but it failed.\n"
+            f"Fix: open the file in Excel and re-save as 'CSV UTF-8 (Comma delimited)'."
+        ) from e
+
+
 def _polygon_area(xs, ys):
     """Shoelace formula for polygon area from coordinate arrays."""
     xs = np.asarray(xs, dtype=np.float64)
@@ -45,47 +88,53 @@ class DataLoader:
     def log(self, msg):
         print(msg); self._log.append(msg)
 
+    def _col(self, field_name: str) -> str:
+        """Return the actual column name for a required field, using column_mapping override if set."""
+        if getattr(self.dc, 'column_mapping', None) and field_name in self.dc.column_mapping:
+            return self.dc.column_mapping[field_name]
+        return getattr(self.dc, field_name)
+
     def _classify_rock_code(self, code: str) -> int:
         """Map a rock code string to an integer lithology code. Unknown codes return 0."""
         return self.cfg.lithology.rock_codes.get(code.upper(), 0)
 
     # ── DRILL DATA ────────────────────────────────────────────────────────────
     def load_collar(self) -> pd.DataFrame:
-        df = pd.read_csv(self.dc.collar_csv)
-        for col in [self.dc.col_bhid, self.dc.col_xcollar,
-                    self.dc.col_ycollar, self.dc.col_zcollar]:
+        df = _read_csv_smart(self.dc.collar_csv)
+        for col in [self._col('col_bhid'), self._col('col_xcollar'),
+                    self._col('col_ycollar'), self._col('col_zcollar')]:
             if col not in df.columns:
                 raise ValueError(f"Collar file missing column: {col}")
-        for c in [self.dc.col_xcollar, self.dc.col_ycollar,
-                  self.dc.col_zcollar, self.dc.col_depth]:
+        for c in [self._col('col_xcollar'), self._col('col_ycollar'),
+                  self._col('col_zcollar'), self._col('col_depth')]:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors='coerce')
         self.log(f"Collar: {len(df)} holes from {self.dc.collar_csv}")
         return df
 
     def load_assay(self) -> pd.DataFrame:
-        df = pd.read_csv(self.dc.assay_csv, low_memory=False)
-        for c in [self.dc.col_from, self.dc.col_to,
-                  self.dc.col_zn, self.dc.col_pb]:
+        df = _read_csv_smart(self.dc.assay_csv, low_memory=False)
+        for c in [self._col('col_from'), self._col('col_to'),
+                  self._col('col_zn'), self._col('col_pb'), self._col('col_ag')]:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors='coerce')
         self.log(f"Assay: {len(df)} intervals from {self.dc.assay_csv}")
         return df
 
     def load_litho(self) -> pd.DataFrame:
-        df = pd.read_csv(self.dc.litho_csv)
-        for c in [self.dc.col_from, self.dc.col_to]:
+        df = _read_csv_smart(self.dc.litho_csv)
+        for c in [self._col('col_from'), self._col('col_to')]:
             df[c] = pd.to_numeric(df[c], errors='coerce')
         lc_map = self.cfg.lithology.rock_codes
-        df['lcode'] = df[self.dc.col_rockcode].apply(
+        df['lcode'] = df[self._col('col_rockcode')].apply(
             lambda x: self._classify_rock_code(str(x).strip()))
         self.log(f"Litho: {len(df)} intervals, "
                  f"{df['lcode'].nunique()} unique codes")
         return df
 
     def load_survey(self) -> pd.DataFrame:
-        df = pd.read_csv(self.dc.survey_csv)
-        for c in [self.dc.col_azimuth, self.dc.col_dip]:
+        df = _read_csv_smart(self.dc.survey_csv)
+        for c in [self._col('col_azimuth'), self._col('col_dip'), self._col('col_depth')]:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors='coerce')
         self.log(f"Survey: {len(df)} records from {self.dc.survey_csv}")
@@ -164,7 +213,7 @@ class DataLoader:
         """
         opc = self.cfg.ore_polygons
         if opc.centroids_csv and os.path.exists(opc.centroids_csv):
-            df = pd.read_csv(opc.centroids_csv)
+            df = _read_csv_smart(opc.centroids_csv)
             self.log(f"Ore centroids: {len(df)} records from CSV")
             return df
         if opc.polygon_folder and os.path.isdir(opc.polygon_folder):
@@ -231,7 +280,7 @@ class DataLoader:
         frames = []
         for domain, path in bmc.domain_files.items():
             if os.path.exists(path):
-                df = pd.read_csv(path, low_memory=False)
+                df = _read_csv_smart(path, low_memory=False)
                 df['domain'] = domain
                 frames.append(df)
                 self.log(f"Block model domain '{domain}': {len(df)} blocks")

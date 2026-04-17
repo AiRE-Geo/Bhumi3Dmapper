@@ -1,0 +1,161 @@
+{
+    "deposit_type": {
+        "generic": {
+            "definition": "The geological deposit type you are exploring for. Controls which scoring model and thresholds are used.",
+            "why": "Different deposit types have fundamentally different host rocks, alteration patterns, and geophysical signatures. Choosing the correct type is the single most important setting.",
+            "default": "SEDEX Pb-Zn"
+        }
+    },
+    "structural_marker_code": {
+        "generic": {
+            "definition": "Rock code for the primary structural control (fault, contact, or vein-hosting unit).",
+            "why": "Used to compute the C2 structural halo score — cells near this rock type score higher.",
+            "range": "Any integer from your rock code mapping",
+            "default": "3 (Pegmatite for SEDEX defaults)"
+        },
+        "SEDEX Pb-Zn": {
+            "definition": "Code for the structural marker controlling fold-axis ore localisation.",
+            "example": "At Kayad (Rajasthan): code 3 = Pegmatite, which tracks the fold hinge. At Rampura-Agucha: pegmatitic dykes serve the same role.",
+            "suggestion": "If your SEDEX has a different structural marker (graphitic schist, carbonate bed), update rock_codes and use that integer."
+        },
+        "VMS Cu-Zn": {
+            "definition": "In VMS systems, typically the stringer zone or felsic-mafic contact marking the feeder pipe.",
+            "example": "At Kidd Creek (Ontario): rhyolite-basalt contact. At Neves-Corvo (Portugal): volcaniclastic unit. At Greens Creek (Alaska): stringer zone.",
+            "suggestion": "Choose the code for the rock type defining the hydrothermal upflow zone in your deposit."
+        },
+        "Epithermal Au": {
+            "definition": "In epithermal deposits, typically the silicified zone or main fault/vein lithology.",
+            "example": "At Hishikari (Japan): banded quartz vein material. At Waihi (New Zealand): Martha Fault silicified andesite.",
+            "suggestion": "Use the rock code for your dominant vein host or silicified alteration package."
+        },
+        "Porphyry Cu-Mo": {
+            "definition": "Typically the causative mineralised porphyry intrusive body itself.",
+            "example": "At El Teniente (Chile): quartz-monzonite porphyry. At Chuquicamata (Chile): porphyry stocks. At Grasberg (Indonesia): diorite porphyry.",
+            "suggestion": "Use the code for the productive intrusive body, not the barren host rocks."
+        }
+    },
+    "footwall_code": {
+        "generic": {
+            "definition": "Rock code for the footwall unit below the ore horizon (if applicable).",
+            "why": "Used to compute C3 footwall standoff score — distance from this contact affects prospectivity.",
+            "default": "4 (CSR / Calc-Silicate Rock for SEDEX)"
+        },
+        "SEDEX Pb-Zn": {
+            "definition": "The footwall horizon. At Kayad, this is Calc-Silicate Rock (CSR) which sits below the ore.",
+            "example": "Kayad: CSR forms a distinctive basement to the mineralisation. At Mt Isa: graphitic siltstone.",
+            "suggestion": "Standoff of 10-40m above the footwall is optimal for SEDEX ore."
+        },
+        "VMS Cu-Zn": {
+            "definition": "For VMS, often not a distinct footwall — the alteration pipe itself is the footwall zone.",
+            "suggestion": "Consider disabling this criterion or mapping to the alteration pipe rock code."
+        }
+    },
+    "pg_breaks": {
+        "generic": {
+            "definition": "Distance breakpoints (metres) for the structural marker halo score.",
+            "why": "Defines how far from the structural control mineralisation is expected. Closer bands score higher.",
+            "range": "Increasing list of positive distances",
+            "default": "[2, 4, 10, 15, 20, 30, 50]"
+        },
+        "SEDEX Pb-Zn": {
+            "definition": "PG (Pegmatite) halo distance breaks. Peak mineralisation occurs 4-10m inboard from the contact.",
+            "example": "Kayad: 4-10m from PG contact = highest ore density. 10-15m is still productive. >30m rarely economic."
+        },
+        "Porphyry Cu-Mo": {
+            "definition": "Distance from intrusive body margin. Porphyry mineralisation is broader and deeper than SEDEX.",
+            "example": "Typical porphyry envelope: 100-500m around stock. Use [50, 100, 250, 500, 800, 1200, 2000] or similar."
+        }
+    },
+    "csr_upper_breaks": {
+        "generic": {
+            "definition": "Distance breaks (metres) for footwall standoff scoring in the upper regime.",
+            "why": "In the upper mine, ore forms at a distance above the footwall — close OR far is unfavourable.",
+            "default": "[5, 10, 40, 60, 100]"
+        },
+        "SEDEX Pb-Zn": {
+            "definition": "CSR standoff — distance above the Calc-Silicate Rock footwall.",
+            "example": "Kayad upper mine: 10-40m standoff is optimal. Below 10m or above 60m, less ore."
+        }
+    },
+    "plunge_breaks": {
+        "generic": {
+            "definition": "Distance breaks (metres) from the ore shoot plunge axis.",
+            "why": "C7 plunge proximity — ore follows a preferred plunge vector. Cells near this vector score higher.",
+            "range": "Increasing list of positive distances",
+            "default": "[75, 150, 300, 600]"
+        },
+        "SEDEX Pb-Zn": {
+            "definition": "Distance from the Kayad N28°E (upper) or N315°E (lower) ore shoot axes.",
+            "example": "Shallow shoot: 30°/075°E plunge, shifts 122m east per 100m down. Deep shoot: 12°/063°E, shifts 410m east per 100m down."
+        },
+        "Porphyry Cu-Mo": {
+            "definition": "Distance from the deposit centre (usually the intrusive centroid).",
+            "example": "Use larger distances — porphyry systems extend kilometres. Try [100, 300, 600, 1000]."
+        },
+        "Epithermal Au": {
+            "definition": "Distance from the controlling fault or vein array centroid.",
+            "example": "Epithermal veins are narrow. Try [50, 100, 200, 400]."
+        }
+    },
+    "novelty_distance_m": {
+        "generic": {
+            "definition": "Minimum distance from known ore (metres) for a cell to be considered 'novel' (potential greenfield target).",
+            "why": "Used by the blind/environment model — novelty bonus applied beyond this distance.",
+            "range": "100 to 5000 m depending on deposit scale",
+            "default": "500"
+        },
+        "SEDEX Pb-Zn": {
+            "example": "Kayad: 500m threshold identifies cells outside known ore lenses as 'blind' candidates."
+        },
+        "Porphyry Cu-Mo": {
+            "example": "Use larger (1000-2000m) — porphyry systems are large; close-in targets are extensions, not blind targets."
+        }
+    },
+    "hard_veto_code": {
+        "generic": {
+            "definition": "Rock code for the 'never ore-bearing' lithology. Cells with this code have scores capped at veto_score_cap regardless of other criteria.",
+            "why": "Prevents false positives in known barren host rocks.",
+            "default": "2 (Amphibolite for SEDEX)"
+        },
+        "SEDEX Pb-Zn": {
+            "example": "Kayad: Amphibolite (code 2) is the flanking wall rock and is never mineralised. Scores are capped at 20 regardless of gravity/magnetic response."
+        }
+    },
+    "veto_score_cap": {
+        "generic": {
+            "definition": "Maximum score (0-100) allowed in veto-coded cells.",
+            "why": "A hard ceiling prevents false-positive prospectivity in known-barren rocks.",
+            "range": "0 to 50 (typically 15-25)",
+            "default": "20"
+        }
+    },
+    "mag_abs_breaks": {
+        "generic": {
+            "definition": "Magnetic susceptibility breakpoints (μSI) for absolute scoring.",
+            "why": "Many deposits show characteristic magnetic signatures (lows or highs).",
+            "default": "[-10, -5, 0, 10, 30, 60]"
+        },
+        "SEDEX Pb-Zn": {
+            "definition": "Kayad ore shows a persistent local magnetic minimum within a broadly positive field.",
+            "example": "Values below -10 μSI are prospective (coincident with ore). Values above 30 are typically barren amphibolite."
+        },
+        "Porphyry Cu-Mo": {
+            "example": "Porphyry phyllic alteration destroys magnetite → magnetic low. Potassic alteration forms magnetite → magnetic high. Central phyllic zone scores high with negative breaks."
+        }
+    },
+    "grav_abs_upper_breaks": {
+        "generic": {
+            "definition": "Gravity breakpoints (mGal) for absolute scoring in the upper depth regime.",
+            "why": "Dense orebodies create local gravity anomalies. The sign depends on the deposit.",
+            "default": "[-0.10, -0.03, 0.05, 0.30, 0.80]"
+        },
+        "SEDEX Pb-Zn": {
+            "definition": "Kayad ore is density-NEGATIVE relative to flanking amphibolite — unusual!",
+            "example": "-0.03 to -0.19 mGal = strong ore signal. Values above 0.30 = flanking dense amphibolite = score low.",
+            "suggestion": "Counter-intuitive: here, gravity LOWS are prospective, not highs. Verify your deposit's density contrast before using defaults."
+        },
+        "Porphyry Cu-Mo": {
+            "example": "Porphyry systems often produce gravity highs from mineralisation + potassic alteration. Use positive breaks."
+        }
+    }
+}

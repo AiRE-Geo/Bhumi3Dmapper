@@ -182,7 +182,12 @@ class BhumiDockWidget(QDockWidget):
             summary = result.get('SUMMARY', '')
             self._log(f'Validation: {status} ({summary})')
         except Exception as e:
-            self._log(f'ERROR: {e}')
+            try:
+                from ..core.errors import translate, format_for_display
+                ue = translate(e)
+                self._log(format_for_display(ue))
+            except Exception:
+                self._log(f'ERROR: {e}')
 
     def _run_scoring(self):
         if not self._check_config():
@@ -196,7 +201,12 @@ class BhumiDockWidget(QDockWidget):
             })
             self._log(f'Scoring: {result.get("RESULT", "?")}')
         except Exception as e:
-            self._log(f'ERROR: {e}')
+            try:
+                from ..core.errors import translate, format_for_display
+                ue = translate(e)
+                self._log(format_for_display(ue))
+            except Exception:
+                self._log(f'ERROR: {e}')
 
     def _load_results(self):
         if not self._check_config():
@@ -218,4 +228,9 @@ class BhumiDockWidget(QDockWidget):
             })
             self._log(f'Load results: {result.get("RESULT", "?")}')
         except Exception as e:
-            self._log(f'ERROR: {e}')
+            try:
+                from ..core.errors import translate, format_for_display
+                ue = translate(e)
+                self._log(format_for_display(ue))
+            except Exception:
+                self._log(f'ERROR: {e}')

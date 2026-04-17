@@ -1,0 +1,34 @@
+{
+  "project_name": "Bhumi3D Example (Synthetic SEDEX)",
+  "project_description": "DO NOT USE FOR REAL EXPLORATION. Synthetic data to verify the tool works on your machine.",
+  "deposit_type": "SEDEX Pb-Zn",
+  "location": "Synthetic \u2014 based on Kayad, Rajasthan",
+  "crs_epsg": 32643,
+  "grid": {
+    "xmin": 469490.0,
+    "ymin": 2934890.0,
+    "cell_size_m": 5.0,
+    "nx": 50,
+    "ny": 50,
+    "epsg": 32643,
+    "z_top_mrl": 235.0,
+    "z_bot_mrl": 185.0,
+    "dz_m": 25.0
+  },
+  "drill": {
+    "collar_csv": "data/collar.csv",
+    "litho_csv": "data/litho.csv",
+    "assay_csv": "data/assay.csv",
+    "survey_csv": "data/survey.csv"
+  },
+  "geophysics": {
+    "gravity_folder": "geophysics/gravity",
+    "magnetics_folder": "geophysics/magnetics",
+    "gravity_pixel_size_m": 5.0,
+    "magnetics_pixel_size_m": 30.0
+  },
+  "outputs": {
+    "output_dir": "outputs",
+    "project_name": "Bhumi3D_Example_DO_NOT_USE_FOR_REAL"
+  }
+}
