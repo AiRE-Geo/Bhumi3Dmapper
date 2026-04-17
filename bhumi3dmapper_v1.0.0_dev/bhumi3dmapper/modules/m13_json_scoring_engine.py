@@ -31,6 +31,7 @@ Two-engine decision: Session 3 Orogenic Gold brainstorming 2026-04-17.
 """
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -44,10 +45,14 @@ except ImportError:
 # Import bridge and shared-repo loader with fallback for test contexts
 try:
     from ..core.evidence_key_bridge import get_bridge_entry, get_bhumi_value, get_coverage_report
-    from ..core.shared_repo_loader import load_deposit_model, SharedRepoNotFoundError
+    from ..core.shared_repo_loader import (
+        load_deposit_model, get_model_entry, get_repo_root, SharedRepoNotFoundError,
+    )
 except ImportError:
     from core.evidence_key_bridge import get_bridge_entry, get_bhumi_value, get_coverage_report
-    from core.shared_repo_loader import load_deposit_model, SharedRepoNotFoundError
+    from core.shared_repo_loader import (
+        load_deposit_model, get_model_entry, get_repo_root, SharedRepoNotFoundError,
+    )
 
 
 # ── Data structures ────────────────────────────────────────────────────────────
@@ -228,12 +233,33 @@ class JsonScoringEngine:
         self.deposit_type = deposit_type
         self.override_low_coverage = override_low_coverage
 
-        # Load model from shared repo
+        # Load model from shared repo (dataclass)
         self._model = load_deposit_model(deposit_type, validate=validate_schema)
+
+        # Option A (Gap 2, BH-REM-P1): load raw JSON alongside the dataclass to access
+        # schema v2 additive 3D fields (depth_extent, 3d_variant_key) which are not
+        # reflected on EvidenceWeight. Build {layer_key: raw_weight_dict} lookup.
+        entry = get_model_entry(deposit_type)
+        raw_model_path = get_repo_root() / "models" / entry["file"]
+        if not raw_model_path.exists():
+            raise SharedRepoNotFoundError(
+                f"Model file referenced in manifest not found: {raw_model_path} "
+                f"(deposit_type='{deposit_type}')"
+            )
+        with open(raw_model_path, encoding="utf-8") as _fh:
+            _raw_model = json.load(_fh)
+        self._raw_weights: Dict[str, dict] = {
+            w["layer_key"]: w for w in _raw_model.get("weights", [])
+        }
+
+        # Deposit family from manifest (used for deposit_family_restriction in bridge)
+        self._deposit_family: str = entry.get("family", "")
 
         # Pre-compute model weight list and coverage report
         self._weights = self._model.weights
-        self._coverage = get_coverage_report(self._weights)
+        self._coverage = get_coverage_report(
+            self._weights, deposit_family=self._deposit_family
+        )
         self._model_notes = getattr(self._model, "model_notes", {}) or {}
 
     @property
@@ -347,9 +373,11 @@ class JsonScoringEngine:
             # Clamp to [0, 1]
             ev_value = max(0.0, min(1.0, ev_value))
 
-            # Schema v2: depth attenuation (reads from raw weight dict if available)
-            # EvidenceWeight doesn't carry depth_extent natively — check model JSON
-            depth_factor = 1.0  # default; full depth_extent support requires raw JSON pass-through
+            # Schema v2: depth attenuation — reads depth_extent from raw weight dict
+            # (Gap 2 Option A: self._raw_weights built in __init__ from raw JSON).
+            # EvidenceWeight dataclass doesn't carry depth_extent natively (Phase 3 work).
+            raw_w = self._raw_weights.get(shared_key, {})
+            depth_factor = compute_depth_factor(raw_w, z_mrl)
 
             # Effective weight = model_weight × bridge_confidence × depth_factor
             eff_weight = model_weight * bridge_entry.confidence * depth_factor
@@ -462,8 +490,9 @@ class JsonScoringEngine:
     def get_coverage_summary(self) -> str:
         """Return a human-readable coverage summary string."""
         cov = self._coverage
+        family_str = f" [{self._deposit_family}]" if self._deposit_family else ""
         lines = [
-            f"Coverage report — {self.deposit_type}",
+            f"Coverage report — {self.deposit_type}{family_str}",
             f"  Total weight mass  : {cov.get('total_weight_mass', 0):.3f}",
             f"  Matched weight mass: {cov.get('matched_weight_mass', 0):.3f}",
             f"  Coverage fraction  : {cov.get('coverage_fraction', 0):.1%}",
