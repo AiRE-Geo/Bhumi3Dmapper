@@ -1115,6 +1115,485 @@ BRIDGE_TABLE: List[BridgeEntry] = [
         ),
         requires_cage_in_export=False,
     ),
+
+    # ══ ENTRIES FOR GRAPHITE_CARBONATE_HOSTED ═════════════════════════════════
+    # Added BH-REM-P1 (2026-04-17). Lac-des-Îles-type marble-hosted flake graphite
+    # (Grenville Province). 1 new composite key not present in graphite_flake.
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="emit_carbonate_x_fold_hinge_proximity",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "EMIT carbonate mineral abundance × fold hinge proximity composite "
+            "(graphite_carbonate_hosted, weight 0.82). Ankerite/calcite EMIT signal "
+            "co-located with fold hinge geometry — diagnostic of the carbonate platform "
+            "protolith deformed by amphibolite-facies metamorphism (Lac-des-Îles "
+            "paradigm). Both factors individually MISSING in Bhumi: emit_carbonate "
+            "requires CAGE-IN EMIT engine; fold_hinge_proximity requires structural "
+            "mapping or aeromag derivative. Cannot form composite without both factors. "
+            "Import from CAGE-IN via JC-TBD-EVIDENCESTACK-EXPORT."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # ══ ENTRIES FOR GRAPHITE_PELITIC_HOSTED ═══════════════════════════════════
+    # Added BH-REM-P1 (2026-04-17). Balama/Molo/Epanko-type carbonaceous metapelite-
+    # hosted flake graphite (East Africa paradigm). 3 new keys vs graphite_flake:
+    # radio_u_ppm, radio_u_over_th (U-enrichment in black shale protolith), and the
+    # composite em_conductivity_x_radio_u_over_th.
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="radio_u_ppm",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Uranium radiometric channel (ppm U). Elevated U in carbonaceous black "
+            "shale protoliths (organic carbon sorbs U from seawater during deposition). "
+            "Used positively in graphite_pelitic_hosted to flag carbonaceous metapelite "
+            "hosts (weight 0.55) and at low weight in sedex_pbzn (0.20: anoxic basin "
+            "floor U enrichment co-incident with SEDEX feeder zones). NOTE: radio_th_over_u "
+            "(Th/U ratio) and radio_u_over_th (U/Th ratio) are separate keys — both "
+            "derived from the same airborne radiometric survey but serve different "
+            "geological discriminant roles. No radiometrics in Bhumi. "
+            "Import from CAGE-IN radiometrics engine via JC-TBD-EVIDENCESTACK-EXPORT."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="radio_u_over_th",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "U/Th ratio radiometric channel. Elevated U/Th flags carbonaceous pelitic "
+            "protoliths (anoxic sediments sorb U but not Th). Used in graphite_pelitic_hosted "
+            "(weight 0.55) as a positive discriminant for black shale / carbonaceous "
+            "metapelite hosts. Inverse of radio_th_over_u: high U/Th favours pelitic "
+            "graphite hosts; high Th/U favours aluminous metapelite (granulite). "
+            "Both ratios derived from the same airborne radiometric survey but encode "
+            "different protolith signals. No radiometrics in Bhumi. "
+            "Import from CAGE-IN radiometrics engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="em_conductivity_x_radio_u_over_th",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "EM conductivity × U/Th ratio composite (graphite_pelitic_hosted, weight 0.80). "
+            "Graphite conductivity anomaly co-located with high U/Th (carbonaceous "
+            "metapelite host signature). Both factors individually MISSING: em_conductivity "
+            "requires EM survey data (JC-TBD-EM-CONDUCTIVITY); radio_u_over_th requires "
+            "airborne radiometrics. This composite is the highest-specificity discriminant "
+            "for pelitic-hosted vs. carbonate-hosted graphite: EM confirms graphite "
+            "conductor, U/Th confirms black-shale protolith. Import both from CAGE-IN."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # ══ ENTRIES FOR SEDEX_PBZN ════════════════════════════════════════════════
+    # Added BH-REM-P1 (2026-04-17). SEDEX Pb-Zn (Kayad, HYC, Sullivan, Gamsberg).
+    # deposit_family: hydrothermal_sedex.
+    # 17 new primary + 7 new composite keys. Several composites are PARTIAL
+    # because both c4_gravity and c6_structural_corridor are bridged.
+
+    # -- Radiometric primaries (sedex_pbzn) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="radio_th_over_u",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Th/U ratio radiometric channel. High Th/U indicates granulite-facies "
+            "or oxidised basement lacking carbonaceous matter (unfavourable SEDEX host); "
+            "low Th/U indicates U retention in reduced / carbonaceous sediments "
+            "(favourable for SEDEX basin floor). Used in sedex_pbzn at low weight (0.30) "
+            "as a basin-floor anoxia proxy. Inverse of radio_u_over_th. "
+            "No radiometrics in Bhumi. Import from CAGE-IN radiometrics engine."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # -- Geophysical primaries (sedex_pbzn) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="mag_susc",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Magnetic susceptibility model (3D inversion). Used in sedex_pbzn at weight "
+            "0.80 — pyrrhotite in SEDEX ore zones elevates susceptibility, while "
+            "carbonate-dominant host rocks are typically non-magnetic. Distinct from "
+            "mag_rtp_as (analytic signal computed from susceptibility or TMI) and mag_tilt: "
+            "mag_susc is the volumetric susceptibility model from 3D inversion, not a "
+            "filter/derivative. Bhumi c5_magnetics uses analytic signal magnitude (bridged "
+            "to mag_rtp_as as NATIVE) — raw susceptibility model is not computed by Bhumi. "
+            "MISSING: requires 3D inversion of TMI data, which is not part of Bhumi's "
+            "current processing chain. Future BH-REM-Px: integrate 3D mag inversion output "
+            "as an optional supplementary grid."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="grav_laplacian",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Gravity Laplacian (second vertical derivative of Bouguer anomaly). Enhances "
+            "shallow causative bodies by sharpening anomaly boundaries — identifies dense "
+            "ore-body contacts within host stratigraphy. Used in sedex_pbzn (weight 0.75). "
+            "Distinct from grav_residual (first-order anomaly) and grav_gradient (horizontal "
+            "gradient). Bhumi does not compute the Laplacian from its gravity grid. "
+            "MISSING: would require adding a ∂²g/∂z² filter to m10_depth_corrector or a "
+            "dedicated gravity derivative module. Engineering ticket: BH-REM-Px-GRAV-LAPLACIAN."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="grav_gradient",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Horizontal gravity gradient magnitude (sqrt(∂g/∂x² + ∂g/∂y²)). Delineates "
+            "density contrasts and structural contacts — in SEDEX context, marks the "
+            "boundary between dense ore-hosting stratigraphy and lighter hanging-wall "
+            "rocks. Used in sedex_pbzn (weight 0.65). Distinct from grav_residual "
+            "(anomaly value) and grav_laplacian (curvature). Bhumi c4_gravity is bridged "
+            "to grav_residual (anomaly value) — the horizontal gradient is not currently "
+            "computed. MISSING: add horizontal gradient filter to Bhumi gravity module. "
+            "Engineering ticket: BH-REM-Px-GRAV-GRADIENT."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="mag_gradient",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Horizontal magnetic gradient magnitude. Marks magnetic susceptibility "
+            "contrasts — in SEDEX context, delineates pyrrhotite ore zone boundaries "
+            "against non-magnetic carbonate host. Used in sedex_pbzn (weight 0.55). "
+            "Distinct from mag_tilt (tilt derivative, already NATIVE-bridged via "
+            "c8_mag_gradient) and mag_1vd (first vertical derivative). Bhumi c8_mag_gradient "
+            "computes lateral gradient magnitude — this IS equivalent to mag_gradient. "
+            "UPGRADE OPPORTUNITY: c8_mag_gradient → mag_gradient NATIVE bridge "
+            "(same computation, same geological use). NOTE: c8_mag_gradient is currently "
+            "NATIVE-bridged to mag_tilt (tilt derivative) for orogenic_au edge-detection. "
+            "For SEDEX/Ni-sulphide, mag_gradient is the appropriate key. "
+            "PENDING DR. PRITHVI RULING on whether c8 serves double duty as both "
+            "mag_tilt (amplitude-normalised edge detector) and mag_gradient (amplitude-"
+            "dependent edge detector) simultaneously, or if they must be separate inputs."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="ip_chargeability",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Induced polarisation (IP) chargeability (ms). Sulphide minerals (pyrite, "
+            "pyrrhotite, sphalerite, galena) are electronic semiconductors generating "
+            "strong IP responses. For SEDEX Pb-Zn, IP chargeability directly maps the "
+            "sulphide ore column (weight 0.70 in sedex_pbzn). NOT the same as "
+            "em_chargeability (which is from EM data) — ip_chargeability here is from "
+            "DCIP or gradient array IP surveys (ground geophysics). "
+            "Not in CAGE-IN EvidenceStack. No IP inputs in Bhumi (Bhumi uses gravity, "
+            "magnetics, seismic — not IP). Engineering ticket: JC-TBD-IP-CHARGEABILITY "
+            "(separate from JC-TBD-EM-CONDUCTIVITY)."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="grav_3d_inversion_proximity",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Proximity to dense body from 3D gravity inversion (UBC-GIF or equivalent). "
+            "3D inversion recovers volumetric density model; proximity to high-density "
+            "body isolines identifies buried dense ore zones at depth. Used in sedex_pbzn "
+            "(weight 0.55). Distinct from grav_residual (surface anomaly value): proximity "
+            "to 3D inversion body is a depth-resolved signal, not a surface measurement. "
+            "Bhumi does not currently perform 3D gravity inversion. MISSING. "
+            "Engineering ticket: BH-REM-Px-GRAV-3D-INVERSION."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    # -- Geological / stratigraphic primaries (sedex_pbzn) --
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="stratigraphic_position",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Stratigraphic position favourability — proximity to the SEDEX exhalite "
+            "horizon within a mapped stratigraphy column. SEDEX ore is stratabound within "
+            "a specific stratigraphic interval (e.g., HYC Black Star Shale, Kayad QMS "
+            "horizon). Used in sedex_pbzn (weight 0.55). Requires: (a) a measured "
+            "stratigraphic column, and (b) a lithostratigraphic interpolation across the "
+            "3D volume. Not directly computable from geophysics alone. Bhumi's c1_lithology "
+            "captures host-rock code but not stratigraphic position within that rock. "
+            "MISSING: requires dedicated stratigraphy interpolation module or geological "
+            "model import. Engineering ticket: BH-REM-Px-STRAT-POSITION."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="basin_margin_proximity",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Proximity to a syn-sedimentary basin margin fault or continental margin "
+            "hinge zone. SEDEX ore systems localise at basin-margin fault escarpments "
+            "controlling sub-seafloor hydrothermal circulation cells (e.g., HYC and "
+            "Kayad both on reactivated Proterozoic basin-bounding faults). Used in "
+            "sedex_pbzn (weight 0.45). Requires basin-architecture interpretation from "
+            "regional geology — not derivable from local geophysics without basin-scale "
+            "structural mapping. MISSING: requires regional geological framework input. "
+            "Partially captured by c6_structural_corridor → fault_proximity (PARTIAL), "
+            "but basin-margin proximity is a regional context layer, not a local fault "
+            "proximity metric. Engineering ticket: BH-REM-Px-BASIN-MARGIN."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    # -- Geochemical anomaly intensity suite (sedex_pbzn) --
+    # These are voxel-interpolated downhole assay concentrations (not surface geochem).
+    # Bhumi's drill processor (m02) handles Zn/Pb/Ag assays but does not produce
+    # anomaly_intensity layers. m09_column_mapper.py maps assay columns.
+    # MISSING for now — engineering feasibility for BH-REM-Px.
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="anomaly_intensity_zn",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Voxel-interpolated Zn assay concentration (normalised anomaly intensity). "
+            "Direct ore-grade signal for SEDEX Pb-Zn — highest weight primary in "
+            "sedex_pbzn (weight 0.75). Bhumi's m02_drill_processor.py ingests downhole "
+            "assay data and m09_column_mapper.py identifies Zn columns (aliases: 'Zn', "
+            "'ZN_ppm', 'Zinc_pct', etc.). HOWEVER, Bhumi currently does not interpolate "
+            "assay data into the voxel grid as a prospectivity layer — assays are used "
+            "for grade model calibration (c9_grade_model), not as a standalone WLC layer. "
+            "UPGRADE OPPORTUNITY: extend m02 to produce anomaly_intensity_zn grid via "
+            "OK/IDW interpolation of Zn assays. Engineering ticket: BH-REM-Px-GEOCHEM-VOXEL."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="anomaly_intensity_pb",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Voxel-interpolated Pb assay concentration (normalised anomaly intensity). "
+            "SEDEX Pb-Zn co-pathfinder (weight 0.70 in sedex_pbzn). Same engineering "
+            "gap as anomaly_intensity_zn: Bhumi ingests Pb assays but does not produce "
+            "a voxel interpolation layer. m09_column_mapper.py aliases: 'Pb', 'PB_ppm', "
+            "'Lead_pct', etc. Engineering ticket: BH-REM-Px-GEOCHEM-VOXEL (same ticket)."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="anomaly_intensity_ag",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Voxel-interpolated Ag assay concentration (normalised anomaly intensity). "
+            "Silver is a consistent SEDEX co-product and pathfinder for the high-grade "
+            "core (weight 0.50 in sedex_pbzn). Same engineering gap as anomaly_intensity_zn. "
+            "m09_column_mapper.py aliases: 'Ag', 'AG_ppm', 'Silver_ppm', etc. "
+            "Engineering ticket: BH-REM-Px-GEOCHEM-VOXEL."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="anomaly_intensity_ba",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Voxel-interpolated Ba assay concentration (normalised anomaly intensity). "
+            "Barite (BaSO₄) is a diagnostic exhalite mineral in SEDEX systems — Ba "
+            "anomalies in drill core indicate proximity to exhalative vent zone "
+            "(weight 0.45 in sedex_pbzn). Same engineering gap as anomaly_intensity_zn. "
+            "Note: Ba is a key SEDEX indicator even at sub-economic concentrations — "
+            "it marks the exhalite horizon irrespective of Pb-Zn grade. "
+            "m09_column_mapper.py likely needs Ba alias addition. "
+            "Engineering ticket: BH-REM-Px-GEOCHEM-VOXEL."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    # -- Composite keys: sedex_pbzn --
+
+    BridgeEntry(
+        bhumi_key="c6_structural_corridor*c1_lithology",
+        shared_key="fault_proximity_x_litho_favourability",
+        bridge_type="PARTIAL",
+        confidence=0.60,
+        prithvi_approved=False,
+        notes=(
+            "UPGRADE OPPORTUNITY: fault_proximity × litho_favourability composite "
+            "(sedex_pbzn, weight 0.85). Both factors are PARTIAL-bridged in Bhumi when "
+            "model is hydrothermal_sedex family: c6_structural_corridor → fault_proximity "
+            "(PARTIAL, conf=0.60, corridors_defined() guard); c1_lithology → litho_favourability "
+            "(PARTIAL, conf=0.65, deposit_family_restriction=['hydrothermal_sedex','sedimentary']). "
+            "Confidence = min(0.60, 0.65) = 0.60 (Amendment 2: min-of-factors rule). "
+            "This composite is the top discriminant for SEDEX: fault (feeder conduit) "
+            "within favourable host stratigraphy. PENDING DR. PRITHVI SIGN-OFF on composite "
+            "validity for SEDEX context AND on the simultaneous application of both guards. "
+            "deposit_family_restriction=['hydrothermal_sedex'] enforced at coverage report level."
+        ),
+        deposit_family_restriction=["hydrothermal_sedex"],
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="grav_laplacian_x_mag_susc",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Gravity Laplacian × mag_susc composite (sedex_pbzn, weight 0.85). "
+            "Dense ore body (Laplacian) co-located with pyrrhotite susceptibility — "
+            "the dual-geophysical bull's-eye for SEDEX sulphide ore column. Both factors "
+            "MISSING: grav_laplacian requires 2nd-derivative gravity filter (not in Bhumi); "
+            "mag_susc requires 3D magnetic inversion (not in Bhumi). Cannot form composite."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="c6_structural_corridor*c4_gravity",
+        shared_key="fault_proximity_x_grav_residual",
+        bridge_type="PARTIAL",
+        confidence=0.60,
+        prithvi_approved=False,
+        notes=(
+            "UPGRADE OPPORTUNITY: fault_proximity × grav_residual composite "
+            "(sedex_pbzn, weight 0.80). c4_gravity → grav_residual is NATIVE (conf=0.90); "
+            "c6_structural_corridor → fault_proximity is PARTIAL (conf=0.60, corridors_defined() "
+            "guard applies). Confidence = min(0.90, 0.60) = 0.60 (Amendment 2). "
+            "Geological meaning: dense sulphide ore column co-located with fault conduit — "
+            "feeder fault + ore gravity signature. Classic SEDEX exploration target. "
+            "PENDING DR. PRITHVI SIGN-OFF on composite validity for SEDEX targets. "
+            "Runtime: corridors_defined() demotion logic in score_voxel() applies to "
+            "this composite (inherited from c6 component)."
+        ),
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="grav_gradient_x_mag_gradient",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "Horizontal gravity gradient × horizontal magnetic gradient composite "
+            "(sedex_pbzn, weight 0.70). Dual-gradient product marks density-susceptibility "
+            "contact edges — used to isolate SEDEX ore columns that show both density "
+            "contrast (dense sulphides) and susceptibility contrast (pyrrhotite). "
+            "Both factors MISSING: grav_gradient not computed by Bhumi; mag_gradient "
+            "pending Dr. Prithvi ruling on c8_mag_gradient dual-role (see mag_gradient entry). "
+            "Cannot form composite."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="grav_residual_x_mag_susc",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "grav_residual × mag_susc composite (sedex_pbzn, weight 0.70). Dense "
+            "sulphide body (gravity) co-located with pyrrhotite susceptibility (mag_susc). "
+            "grav_residual is NATIVE-bridged via c4_gravity; mag_susc is MISSING (3D "
+            "inversion not in Bhumi). Cannot form composite without mag_susc factor."
+        ),
+        requires_cage_in_export=False,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="ip_chargeability_x_em_conductivity",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "IP chargeability × EM conductivity composite (sedex_pbzn, weight 0.70). "
+            "Sulphide ore column is both chargeable (IP) and conductive (EM). The co-"
+            "location product is the most selective downhole-equivalent geophysical "
+            "discriminant for massive sulphide. Both factors MISSING: ip_chargeability "
+            "is from ground DCIP surveys (not in Bhumi); em_conductivity is from airborne "
+            "TDEM (not in Bhumi). Cannot form composite. Engineering tickets: "
+            "JC-TBD-IP-CHARGEABILITY, JC-TBD-EM-CONDUCTIVITY."
+        ),
+        requires_cage_in_export=True,
+    ),
+
+    BridgeEntry(
+        bhumi_key="",
+        shared_key="GOSSAN_x_grav_residual",
+        bridge_type="MISSING",
+        confidence=0.0,
+        prithvi_approved=False,
+        notes=(
+            "GOSSAN × grav_residual composite (sedex_pbzn, weight 0.60). Surface gossan "
+            "(ASTER Fe-oxide) co-located with positive gravity anomaly (dense sulphide "
+            "at depth) — gossan as surface expression of buried massive sulphide. "
+            "GOSSAN is MISSING (no multispectral inputs in Bhumi); grav_residual is "
+            "NATIVE via c4_gravity. Cannot form composite without GOSSAN factor. "
+            "Import GOSSAN from CAGE-IN ASTER engine."
+        ),
+        requires_cage_in_export=True,
+    ),
 ]
 
 
