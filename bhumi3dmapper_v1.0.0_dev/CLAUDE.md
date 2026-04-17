@@ -199,7 +199,7 @@ git commit -m "docs: add CLAUDE.md session instructions (BH-REM-P1 Gap 4)"
 
 Before starting any new Bhumi development session:
 
-1. `git status` — confirm on `main`, commit `f08f56f` or later, no uncommitted changes
+1. `git status` — confirm on `main`, commit `8a8f59d` or later, no uncommitted changes
 2. `python -m pytest bhumi3dmapper/test/ -q` — confirm all tests pass (293 as of 2026-04-17)
 3. Confirm shared repo accessible: `python -c "from bhumi3dmapper.core.shared_repo_loader import get_repo_root; print(get_repo_root())"`
 4. Read pending items section above — check if any Dr. Prithvi sign-offs arrived
