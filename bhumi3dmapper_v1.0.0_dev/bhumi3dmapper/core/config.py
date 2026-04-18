@@ -417,9 +417,34 @@ class ProjectConfig:
         cfg.scoring      = ScoringWeightsConfig(**d.get('scoring', {}))
         cfg.criterion_thresholds = ScoringThresholdsConfig(**d.get('criterion_thresholds', {}))
         cfg.outputs      = OutputConfig(**d.get('outputs', {}))
-        for k in ['project_name','project_description','deposit_type',
-                  'location','crs_epsg','created_by','created_date','version']:
-            if k in d: setattr(cfg, k, d[k])
+        # BH-08: include Engine 2 fields so project re-open restores engine selection
+        for k in ['project_name', 'project_description', 'deposit_type',
+                  'location', 'crs_epsg', 'created_by', 'created_date', 'version',
+                  'scoring_engine', 'json_model_deposit_type',
+                  'shared_repo_path', 'override_low_coverage']:
+            if k in d:
+                setattr(cfg, k, d[k])
+        # BH-10: resolve relative paths against the directory containing the
+        # config file, so loading config.json directly always works regardless
+        # of the process working directory.
+        cfg_dir = os.path.dirname(os.path.abspath(path))
+        cfg._config_dir = cfg_dir  # store for reference
+        for attr in ('collar_csv', 'assay_csv', 'litho_csv', 'survey_csv'):
+            val = getattr(cfg.drill, attr, '')
+            if val and not os.path.isabs(val):
+                setattr(cfg.drill, attr, os.path.join(cfg_dir, val))
+        for attr in ('gravity_folder', 'magnetics_folder', 'ip_folder'):
+            val = getattr(cfg.geophysics, attr, '')
+            if val and not os.path.isabs(val):
+                setattr(cfg.geophysics, attr, os.path.join(cfg_dir, val))
+        if cfg.ore_polygons.polygon_folder and \
+                not os.path.isabs(cfg.ore_polygons.polygon_folder):
+            cfg.ore_polygons.polygon_folder = os.path.join(
+                cfg_dir, cfg.ore_polygons.polygon_folder)
+        if cfg.outputs.output_dir and \
+                not os.path.isabs(cfg.outputs.output_dir):
+            cfg.outputs.output_dir = os.path.join(
+                cfg_dir, cfg.outputs.output_dir)
         return cfg
 
 

@@ -68,6 +68,9 @@ class VoxelBuilder:
         """
         Build all slabs. Returns list of archive paths written.
         progress_callback(zi, total, z_mrl) called after each level.
+        UX-01: progress_callback enables QGIS QgsTask integration — pass a
+        callable that updates a progress bar.  Without one, console output
+        is printed every level so the user can track progress.
         """
         cfg         = self.cfg
         g           = cfg.grid
@@ -175,13 +178,15 @@ class VoxelBuilder:
                 current_block  = {}
                 block_z_start  = None
 
+            # UX-01: always report every level so the user can see progress;
+            # also call the optional callback for QGIS UI progress bars.
+            pvh = int((pr['score'] >= 75).sum())
+            bvh = int((br['score'] >= 75).sum())
+            pct = int(100 * (zi + 1) / NZ)
+            print(f"  [{zi+1:3d}/{NZ}] {pct:3d}%  mRL{z_int:+4d}  "
+                  f"PVH={pvh:4d}  BVH={bvh:4d}  {time.time()-t1:.1f}s")
             if progress_callback:
                 progress_callback(zi, NZ, z)
-            elif zi % 10 == 0 or zi < 3:
-                pvh = int((pr['score'] >= 75).sum())
-                bvh = int((br['score'] >= 75).sum())
-                print(f"  [{zi+1:3d}/{NZ}] mRL{z_int:+4d}  "
-                      f"PVH={pvh:4d}  BVH={bvh:4d}  {time.time()-t1:.0f}s")
 
         # Write metadata JSON
         self._write_metadata(archives, out_dir)
@@ -191,9 +196,52 @@ class VoxelBuilder:
 
     def _write_metadata(self, archives: list, out_dir: str):
         g   = self.cfg.grid
+        gc  = self.cfg.geophysics
+
+        # UX-02: detect inactive criteria and document them in the metadata.
+        # A criterion is "inactive" if it has no input data (block model / ore
+        # polygons absent) and therefore contributed zero to every voxel score.
+        inactive = {}
+        if self.bm_df is None or (hasattr(self.bm_df, 'empty') and self.bm_df.empty):
+            w_c9 = self.cfg.scoring.proximity.get('c9_grade_model', 0.0)
+            inactive['c9_grade_model'] = {
+                'reason': 'No block model configured (block_model.domain_files is empty)',
+                'proximity_weight': w_c9,
+                'impact': (
+                    f"Maximum achievable proximity score reduced by ~"
+                    f"{w_c9 / max(sum(self.cfg.scoring.proximity.values()), 1) * 100:.1f} "
+                    f"percentage points. Provide a grade block model to activate this criterion."
+                ),
+            }
+        if len(self.ore_E) == 0 or (len(self.ore_E) == 1 and self.ore_E[0] == 0.0):
+            w_c10p = self.cfg.scoring.proximity.get('c10_ore_envelope', 0.0)
+            w_c10b = self.cfg.scoring.blind.get('c10_novelty', 0.0)
+            inactive['c10_ore_envelope'] = {
+                'reason': 'No ore polygon / centroid data found',
+                'proximity_weight': w_c10p,
+                'blind_weight': w_c10b,
+                'impact': (
+                    f"C10 ore envelope (prox weight {w_c10p}) returns zero. "
+                    f"C10 novelty (blind weight {w_c10b}) treats all cells as "
+                    f"equally far from known ore. Provide ore polygon GPKGs to activate."
+                ),
+            }
+
+        # UX-03: document magnetics source resolution so geologists understand
+        # stepped appearance at fine grid scale.
+        mag_note = (
+            f"Magnetics source pixel size = {gc.magnetics_pixel_size_m:.0f} m, "
+            f"scoring grid = {g.cell_size_m:.0f} m. "
+            f"Magnetics arrays are nearest-neighbour upsampled to the scoring grid. "
+            f"Prospectivity scores are correct but visualised magnetics contours "
+            f"will appear stepped at scales finer than {gc.magnetics_pixel_size_m:.0f} m. "
+            f"This is expected and does not indicate a data or scoring error."
+        )
+
         meta = {
             'project':    self.cfg.project_name,
             'created':    time.strftime('%Y-%m-%d'),
+            'build':      '0e74433',
             'grid':       {'nx': g.nx, 'ny': g.ny,
                            'z_min': g.z_bot_mrl, 'z_max': g.z_top_mrl,
                            'cell_size_m': g.cell_size_m,
@@ -204,8 +252,16 @@ class VoxelBuilder:
             'score_thresholds': self.cfg.scoring.thresholds,
             'proximity_weights': self.cfg.scoring.proximity,
             'blind_weights':     self.cfg.scoring.blind,
+            'inactive_criteria': inactive,          # UX-02
+            'magnetics_note':    mag_note,          # UX-03
         }
         path = os.path.join(out_dir, f"{self.cfg.outputs.project_name}_Voxel_Metadata.json")
         with open(path, 'w') as f:
             json.dump(meta, f, indent=2)
         print(f"  Metadata: {path}")
+        # UX-02: surface inactive criteria warnings prominently
+        if inactive:
+            print(f"\n  ⚠ INACTIVE CRITERIA ({len(inactive)}) — scores will be lower than maximum:")
+            for k, v in inactive.items():
+                print(f"    [{k}] {v['reason']}")
+                print(f"      → {v['impact']}")

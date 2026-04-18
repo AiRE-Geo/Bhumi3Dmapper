@@ -5,7 +5,7 @@ Loads and validates all input datasets from paths defined in ProjectConfig.
 Returns standardised pandas DataFrames and numpy arrays.
 Works for any project — column names, file formats and CRS are config-driven.
 """
-import os, re, glob
+import os, re, glob, warnings
 import numpy as np
 import pandas as pd
 # TIF loading backends — prefer GDAL (always in QGIS), fallback to rasterio, then PIL
@@ -203,6 +203,27 @@ class DataLoader:
             nodata=self.gc.magnetics_nodatavalue)
         self.log(f"Magnetics: {len(grids)} levels loaded "
                  f"from {self.gc.magnetics_folder}")
+        # BH-11: detect likely unit scale mismatch (nT or raw 10⁻⁴ SI loaded as µSI).
+        # C5/C8 scoring thresholds are calibrated for µSI (typical range −60 to +200).
+        # nT values for Indian airborne surveys run 25 000–75 000 — 3 orders of magnitude off.
+        if grids:
+            sample_arrays = [v[np.isfinite(v)].ravel()
+                             for v in grids.values()
+                             if np.isfinite(v).any()]
+            if sample_arrays:
+                all_vals = np.concatenate(sample_arrays)
+                p95_abs  = float(np.percentile(np.abs(all_vals), 95))
+                if p95_abs > 5_000:
+                    warnings.warn(
+                        f"BH-11 — Magnetics unit scale suspect: 95th-percentile |value| = "
+                        f"{p95_abs:,.0f} (current setting: magnetics_units="
+                        f"'{self.gc.magnetics_units}'). "
+                        f"C5/C8 thresholds assume µSI (typical |range| < 200). "
+                        f"If data is in nT or 10⁻⁴ SI, set magnetics_units in config and "
+                        f"confirm the scale factor applied in load_magnetics(). "
+                        f"Scoring results will be incorrect at this scale.",
+                        stacklevel=2,
+                    )
         return grids
 
     # ── ORE POLYGONS ──────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ To add a new criterion:
   2. Add it to compute_proximity() or compute_blind() with its weight key
   3. Add the weight key to ScoringWeightsConfig in config.py
 """
-import math, numpy as np, os
+import math, numpy as np, os, warnings
 
 try:
     from ..core.config import ProjectConfig, ScoringWeightsConfig, StructuralConfig
@@ -159,6 +159,18 @@ def score_structural_corridor(cell_E: np.ndarray, cell_N: np.ndarray,
         if corr['z_bot_mrl'] <= z_mrl <= corr['z_top_mrl']:
             active = corr; break
     if active is None:
+        # BH-09: emit a warning — silent fallback was masking incorrect scores
+        # in depth zones not covered by any defined corridor.
+        warnings.warn(
+            f"score_structural_corridor: no corridor covers z_mrl={z_mrl:.1f}. "
+            f"Defined corridors cover "
+            + ", ".join(f"{c['name']} [{c['z_bot_mrl']}–{c['z_top_mrl']}]"
+                        for c in sc.corridors)
+            + f". Falling back to '{sc.corridors[0]['name']}' — C6 scores at "
+              f"this level may be geometrically inaccurate. "
+              f"Add a corridor entry in StructuralConfig to cover this depth.",
+            stacklevel=2,
+        )
         active = sc.corridors[0]
 
     az_r  = math.radians(active['azimuth_deg'])
