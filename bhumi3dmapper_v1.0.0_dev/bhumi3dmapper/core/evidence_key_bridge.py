@@ -118,18 +118,39 @@ BRIDGE_TABLE: List[BridgeEntry] = [
 
     BridgeEntry(
         bhumi_key="c8_mag_gradient",
-        shared_key="mag_tilt",
+        shared_key="mag_gradient",
         bridge_type="NATIVE",
-        confidence=0.80,
+        confidence=0.90,
         prithvi_approved=True,
         notes=(
-            "Bhumi c8_mag_gradient computes lateral magnetic gradient magnitude; "
-            "shared-repo mag_tilt is the tilt derivative (arctan(Vz/sqrt(Vx^2+Vy^2))). "
-            "Both are edge-detection operators: gradient magnitude localises body "
-            "edges by amplitude, tilt derivative normalises amplitude to highlight "
-            "edges of both strong and weak bodies. Functionally equivalent for "
-            "delineating alteration boundaries and structural contacts. "
-            "[Dr. Prithvi approved 2026-04-17 BH-REM-P1]"
+            "Bhumi c8_mag_gradient computes lateral magnetic gradient magnitude "
+            "sqrt(dTMI/dx^2 + dTMI/dy^2) — this IS mag_gradient. Amplitude-dependent "
+            "edge detector that marks density-susceptibility contact boundaries. "
+            "Used in sedex_pbzn (0.55) and ni_sulphide contexts. "
+            "[Dr. Prithvi ruling 2026-04-18: c8 computation is identical to mag_gradient. "
+            "NATIVE bridge confirmed. Previous NATIVE bridge to mag_tilt was imprecise — "
+            "mag_tilt is a distinct normalised operator (see PARTIAL entry below).]"
+        ),
+    ),
+
+    BridgeEntry(
+        bhumi_key="c8_mag_gradient",
+        shared_key="mag_tilt",
+        bridge_type="PARTIAL",
+        confidence=0.70,
+        prithvi_approved=True,
+        notes=(
+            "Bhumi c8_mag_gradient computes lateral gradient magnitude (amplitude-dependent); "
+            "shared-repo mag_tilt is arctan(Vz/sqrt(Vx^2+Vy^2)) — amplitude-normalised. "
+            "Both are edge-detection operators but with different amplitude behaviour: "
+            "gradient magnitude emphasises strong anomalies; tilt derivative equally highlights "
+            "edges of both strong and weak bodies, making it better for under-covered terranes. "
+            "PARTIAL at 0.70 because the normalisation difference is geologically meaningful "
+            "for orogenic_au targets where subtle weak-body edges matter (Birimian, West Nile). "
+            "Confidence 0.70 (not 0.80 as previously): amplitude normalisation is not implicit. "
+            "[Dr. Prithvi ruling 2026-04-18: downgraded from NATIVE 0.80 to PARTIAL 0.70. "
+            "Use c8 as mag_gradient (NATIVE 0.90) for SEDEX/Ni-sulphide. "
+            "Use c8 as mag_tilt (PARTIAL 0.70) for orogenic/graphite edge detection.]"
         ),
     ),
 
@@ -848,7 +869,7 @@ BRIDGE_TABLE: List[BridgeEntry] = [
         shared_key="grav_residual_x_mag_rtp_as",
         bridge_type="PARTIAL",
         confidence=0.85,
-        prithvi_approved=False,
+        prithvi_approved=True,
         notes=(
             "UPGRADE OPPORTUNITY: grav_residual * mag_rtp_as. Both factors are NATIVE-bridged "
             "in Bhumi (c4_gravity→grav_residual at 0.90, c5_magnetics→mag_rtp_as at 0.85). "
@@ -856,7 +877,8 @@ BRIDGE_TABLE: List[BridgeEntry] = [
             "Compute at score time as bhumi_evidence['c4_gravity'] * bhumi_evidence['c5_magnetics']. "
             "Classic dual-geophysical bull's-eye for Ni-sulphide: dense ultramafic body "
             "(gravity) with sulphide accumulation (magnetics). Used in ni_sulphide only "
-            "(weight 0.75). PENDING DR. PRITHVI SIGN-OFF on composite validity. "
+            "(weight 0.75). [Dr. Prithvi approved 2026-04-18: Kambalda/Raglan paradigm — "
+            "textbook dual-geophysical signature. Composite geologically valid.] "
             "Phase 1: scoring engine skips this (bhumi_key is synthetic composite notation). "
             "Phase 2: enable composite computation in score_voxel()."
         ),
@@ -867,15 +889,16 @@ BRIDGE_TABLE: List[BridgeEntry] = [
         shared_key="fault_proximity_x_mag_rtp_as",
         bridge_type="PARTIAL",
         confidence=0.60,
-        prithvi_approved=False,
+        prithvi_approved=True,
         notes=(
             "UPGRADE OPPORTUNITY: fault_proximity * mag_rtp_as. c5_magnetics→mag_rtp_as "
             "is NATIVE at 0.85; c6_structural_corridor→fault_proximity is PARTIAL at 0.60. "
             "Confidence = min(0.85, 0.60) = 0.60 (Amendment 2: min-of-factors rule). "
             "Targets the conduit geometry: magnetic anomaly on a major structure = "
             "conduit-hosted sulphide. Used in ni_sulphide only (weight 0.70). "
-            "PENDING DR. PRITHVI SIGN-OFF on composite validity AND on c6→fault_proximity "
-            "component (runtime corridors_defined() guard applies to this composite too). "
+            "[Dr. Prithvi approved 2026-04-18: conduit-hosted sulphide scenario valid for "
+            "komatiite-hosted Ni (Cosmos, Mariners precedent). corridors_defined() guard "
+            "at runtime still applies — this composite inherits the c6 demotion rule.] "
             "Phase 1: scoring engine skips (synthetic bhumi_key). Phase 2: enable composite."
         ),
     ),
@@ -1287,29 +1310,10 @@ BRIDGE_TABLE: List[BridgeEntry] = [
         requires_cage_in_export=False,
     ),
 
-    BridgeEntry(
-        bhumi_key="",
-        shared_key="mag_gradient",
-        bridge_type="MISSING",
-        confidence=0.0,
-        prithvi_approved=False,
-        notes=(
-            "Horizontal magnetic gradient magnitude. Marks magnetic susceptibility "
-            "contrasts — in SEDEX context, delineates pyrrhotite ore zone boundaries "
-            "against non-magnetic carbonate host. Used in sedex_pbzn (weight 0.55). "
-            "Distinct from mag_tilt (tilt derivative, already NATIVE-bridged via "
-            "c8_mag_gradient) and mag_1vd (first vertical derivative). Bhumi c8_mag_gradient "
-            "computes lateral gradient magnitude — this IS equivalent to mag_gradient. "
-            "UPGRADE OPPORTUNITY: c8_mag_gradient → mag_gradient NATIVE bridge "
-            "(same computation, same geological use). NOTE: c8_mag_gradient is currently "
-            "NATIVE-bridged to mag_tilt (tilt derivative) for orogenic_au edge-detection. "
-            "For SEDEX/Ni-sulphide, mag_gradient is the appropriate key. "
-            "PENDING DR. PRITHVI RULING on whether c8 serves double duty as both "
-            "mag_tilt (amplitude-normalised edge detector) and mag_gradient (amplitude-"
-            "dependent edge detector) simultaneously, or if they must be separate inputs."
-        ),
-        requires_cage_in_export=False,
-    ),
+    # mag_gradient — PROMOTED TO NATIVE (BH-02, 2026-04-18)
+    # Dr. Prithvi ruling: c8_mag_gradient IS mag_gradient (same computation).
+    # NATIVE bridge entry is in the NATIVE BRIDGES section above (confidence 0.90).
+    # This MISSING placeholder has been removed.
 
     BridgeEntry(
         bhumi_key="",
@@ -1476,7 +1480,7 @@ BRIDGE_TABLE: List[BridgeEntry] = [
         shared_key="fault_proximity_x_litho_favourability",
         bridge_type="PARTIAL",
         confidence=0.60,
-        prithvi_approved=False,
+        prithvi_approved=True,
         notes=(
             "UPGRADE OPPORTUNITY: fault_proximity × litho_favourability composite "
             "(sedex_pbzn, weight 0.85). Both factors are PARTIAL-bridged in Bhumi when "
@@ -1485,8 +1489,9 @@ BRIDGE_TABLE: List[BridgeEntry] = [
             "(PARTIAL, conf=0.65, deposit_family_restriction=['hydrothermal_sedex','sedimentary']). "
             "Confidence = min(0.60, 0.65) = 0.60 (Amendment 2: min-of-factors rule). "
             "This composite is the top discriminant for SEDEX: fault (feeder conduit) "
-            "within favourable host stratigraphy. PENDING DR. PRITHVI SIGN-OFF on composite "
-            "validity for SEDEX context AND on the simultaneous application of both guards. "
+            "within favourable host stratigraphy. [Dr. Prithvi approved 2026-04-18: "
+            "feeder fault within favourable stratigraphy is the fundamental SEDEX architectural "
+            "control — Kayad, HYC, Sullivan all validate this. Family restriction enforced.] "
             "deposit_family_restriction=['hydrothermal_sedex'] enforced at coverage report level."
         ),
         deposit_family_restriction=["hydrothermal_sedex"],
@@ -1513,7 +1518,7 @@ BRIDGE_TABLE: List[BridgeEntry] = [
         shared_key="fault_proximity_x_grav_residual",
         bridge_type="PARTIAL",
         confidence=0.60,
-        prithvi_approved=False,
+        prithvi_approved=True,
         notes=(
             "UPGRADE OPPORTUNITY: fault_proximity × grav_residual composite "
             "(sedex_pbzn, weight 0.80). c4_gravity → grav_residual is NATIVE (conf=0.90); "
@@ -1521,7 +1526,9 @@ BRIDGE_TABLE: List[BridgeEntry] = [
             "guard applies). Confidence = min(0.90, 0.60) = 0.60 (Amendment 2). "
             "Geological meaning: dense sulphide ore column co-located with fault conduit — "
             "feeder fault + ore gravity signature. Classic SEDEX exploration target. "
-            "PENDING DR. PRITHVI SIGN-OFF on composite validity for SEDEX targets. "
+            "[Dr. Prithvi approved 2026-04-18: fault conduit + dense sulphide gravity "
+            "signature validated by Mount Isa corridor and Kayad brownfields data. "
+            "corridors_defined() guard inherited from c6 component — applies at runtime.] "
             "Runtime: corridors_defined() demotion logic in score_voxel() applies to "
             "this composite (inherited from c6 component)."
         ),

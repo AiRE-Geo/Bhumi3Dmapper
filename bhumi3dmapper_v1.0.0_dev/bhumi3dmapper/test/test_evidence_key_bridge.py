@@ -112,11 +112,35 @@ class TestLookupFunctions:
         assert entry.bridge_type == "NATIVE"
         assert entry.bhumi_key == "c5_magnetics"
 
-    def test_get_bridge_entry_native_mag_tilt(self):
+    def test_get_bridge_entry_mag_gradient_is_native(self):
+        """
+        BH-02: Dr. Prithvi ruling 2026-04-18 — c8_mag_gradient IS mag_gradient
+        (same lateral gradient magnitude computation). NATIVE bridge at 0.90.
+        """
+        entry = get_bridge_entry("mag_gradient")
+        assert entry is not None
+        assert entry.bridge_type == "NATIVE", (
+            "mag_gradient must be NATIVE — c8_mag_gradient computes lateral gradient "
+            "magnitude, which IS mag_gradient. (Dr. Prithvi ruling 2026-04-18)"
+        )
+        assert entry.bhumi_key == "c8_mag_gradient"
+        assert entry.confidence == 0.90
+
+    def test_get_bridge_entry_mag_tilt_is_partial(self):
+        """
+        BH-02: Dr. Prithvi ruling 2026-04-18 — mag_tilt is now PARTIAL (0.70),
+        downgraded from NATIVE (0.80). c8_mag_gradient computes amplitude-dependent
+        lateral gradient; mag_tilt is amplitude-normalised (arctan derivative).
+        The normalisation difference is geologically meaningful.
+        """
         entry = get_bridge_entry("mag_tilt")
         assert entry is not None
-        assert entry.bridge_type == "NATIVE"
+        assert entry.bridge_type == "PARTIAL", (
+            "mag_tilt must be PARTIAL — c8_mag_gradient and mag_tilt are related "
+            "but not identical operators. (Dr. Prithvi ruling 2026-04-18)"
+        )
         assert entry.bhumi_key == "c8_mag_gradient"
+        assert entry.confidence == 0.70
 
     def test_get_bridge_entry_partial_litho(self):
         entry = get_bridge_entry("litho_favourability")
@@ -420,7 +444,11 @@ class TestJsonScoringEngine:
         report = engine.score_voxel(evidence, z_mrl=100.0)
         assert 0.0 <= report.score <= 1.0, f"Score out of range: {report.score}"
         assert report.coverage_fraction > 0.0
-        assert report.native_count >= 3   # grav, mag, mag_gradient
+        # BH-02: c8_mag_gradient → mag_tilt is now PARTIAL (0.70), not NATIVE.
+        # For orogenic_au, model uses mag_tilt. c8 contributes via PARTIAL bridge.
+        # NATIVE: grav_residual (c4), mag_rtp_as (c5) = 2 NATIVE.
+        # PARTIAL: mag_tilt (c8) = 1 PARTIAL (providing evidence value).
+        assert report.native_count >= 2   # grav_residual, mag_rtp_as
 
     def test_score_is_nan_when_blocked(self):
         """Without override, critically low coverage returns NaN score."""
@@ -520,6 +548,70 @@ class TestJsonScoringEngine:
         assert demotion_warnings, (
             "score_voxel() must emit a DEMOTED warning when fault_proximity bridge "
             "is suppressed due to undefined corridors"
+        )
+
+    def test_composite_partial_skip_reason_is_composite_not_implemented(self):
+        """
+        BH-04: Composite PARTIAL entries (bhumi_key contains '*') must produce
+        skip_reason='COMPOSITE_NOT_IMPLEMENTED', not 'NO_VALUE'.
+        The distinction matters: COMPOSITE_NOT_IMPLEMENTED means the computation
+        is architecturally unimplemented; NO_VALUE means evidence was absent at runtime.
+        """
+        try:
+            from bhumi3dmapper.modules.m13_json_scoring_engine import JsonScoringEngine
+            # ni_sulphide has composite PARTIALs: grav_residual_x_mag_rtp_as (c4*c5)
+            # and fault_proximity_x_mag_rtp_as (c6*c5)
+            engine = JsonScoringEngine("ni_sulphide", override_low_coverage=True)
+        except Exception as exc:
+            pytest.skip(f"Shared repo unavailable: {exc}")
+
+        report = engine.score_voxel({}, z_mrl=0.0)
+
+        composite_skips = [
+            c for c in report.contributions
+            if c.skip_reason == "COMPOSITE_NOT_IMPLEMENTED"
+        ]
+        assert composite_skips, (
+            "ni_sulphide has composite PARTIAL entries (c4*c5, c6*c5). "
+            "score_voxel() must produce skip_reason='COMPOSITE_NOT_IMPLEMENTED' "
+            "for these, not 'NO_VALUE'."
+        )
+        # Verify the shared_keys are the expected composites
+        composite_keys = {c.shared_key for c in composite_skips}
+        assert "grav_residual_x_mag_rtp_as" in composite_keys or \
+               "fault_proximity_x_mag_rtp_as" in composite_keys, (
+            f"Expected composite PARTIAL keys in skips, got: {composite_keys}"
+        )
+
+    def test_subsurface_depth_m_emits_warning(self):
+        """
+        BH-05: When a weight defines 'subsurface_depth_m' but surface elevation
+        is not available, compute_depth_factor() must emit a warnings.warn()
+        rather than silently returning 1.0.
+        """
+        import warnings as _warnings
+        from bhumi3dmapper.modules.m13_json_scoring_engine import compute_depth_factor
+
+        weight_dict_with_depth_window = {
+            "depth_extent": {
+                "subsurface_depth_m": [0, 500],
+                "z_attenuation": "constant",
+            }
+        }
+
+        with _warnings.catch_warnings(record=True) as caught:
+            _warnings.simplefilter("always")
+            result = compute_depth_factor(weight_dict_with_depth_window, z_mrl=-200.0)
+
+        assert result == 1.0, "Should still return 1.0 when depth window cannot be evaluated"
+
+        depth_warns = [w for w in caught if "subsurface_depth_m" in str(w.message)]
+        assert depth_warns, (
+            "compute_depth_factor() must emit a warning when subsurface_depth_m "
+            "is present but surface elevation is not wired. Got no such warning."
+        )
+        assert "BH-REM-Px-SURFACE-ELEVATION-WIRE" in str(depth_warns[0].message), (
+            "Warning must reference the engineering ticket BH-REM-Px-SURFACE-ELEVATION-WIRE"
         )
 
 

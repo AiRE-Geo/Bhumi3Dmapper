@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import math
+import warnings
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -166,13 +167,22 @@ def compute_depth_factor(weight_dict: dict, z_mrl: float) -> float:
     # Check depth range exclusion
     subsurface = depth_ext.get("subsurface_depth_m")
     if subsurface and len(subsurface) == 2:
-        # Convert depth-below-surface to mRL: depth = surface_z - z_mrl
-        # We don't know surface elevation here — use z_mrl directly as depth proxy
-        # (positive mRL = shallower, negative = deeper)
-        # For now: treat subsurface_depth_m as [min_depth, max_depth] below surface
-        # expressed as maximum positive z at top, minimum at bottom
-        # Since we only have z_mrl, skip range exclusion — propagate 1.0
-        pass  # TODO: wire surface elevation when available
+        # BH-05: subsurface_depth_m specifies a [min_depth, max_depth] window below
+        # the surface. We cannot evaluate this without knowing the surface elevation
+        # (z_mrl of the topographic surface at each voxel column). That value is not
+        # yet passed to compute_depth_factor(). Emit a warning rather than silently
+        # returning 1.0 — a silent pass would produce unreported scoring errors for
+        # any model weight that defines a depth window.
+        # Engineering ticket: BH-REM-Px-SURFACE-ELEVATION-WIRE
+        # (pass surface_z_mrl to score_voxel() and propagate here)
+        warnings.warn(
+            "compute_depth_factor: 'subsurface_depth_m' depth window is defined "
+            f"({subsurface}) but surface elevation (z_mrl of topographic surface) "
+            "is not available. Depth-range exclusion SKIPPED — returning 1.0. "
+            "Wire surface_z_mrl through score_voxel() to enable this feature. "
+            "Ticket: BH-REM-Px-SURFACE-ELEVATION-WIRE.",
+            stacklevel=3,
+        )
 
     # Attenuation function
     atten_fn = depth_ext.get("z_attenuation", "constant")
@@ -379,6 +389,28 @@ class JsonScoringEngine:
                     depth_factor=1.0,
                     skipped=True,
                     skip_reason="MISSING_BRIDGE",
+                ))
+                missing_count += 1
+                continue
+
+            # BH-04: detect composite PARTIAL entries (bhumi_key contains "*").
+            # These are architecturally unimplemented — the synthetic key like
+            # "c4_gravity*c5_magnetics" cannot be looked up in bhumi_evidence.
+            # Emit a distinct skip_reason so callers can distinguish from genuine
+            # missing evidence vs. unimplemented composite computation.
+            if "*" in bridge_entry.bhumi_key:
+                contributions.append(LayerContribution(
+                    shared_key=shared_key,
+                    bhumi_key=bridge_entry.bhumi_key,
+                    bridge_type=bridge_entry.bridge_type,
+                    model_weight=model_weight,
+                    confidence=bridge_entry.confidence,
+                    evidence_value=float("nan"),
+                    effective_weight=0.0,
+                    weighted_score=0.0,
+                    depth_factor=1.0,
+                    skipped=True,
+                    skip_reason="COMPOSITE_NOT_IMPLEMENTED",
                 ))
                 missing_count += 1
                 continue
