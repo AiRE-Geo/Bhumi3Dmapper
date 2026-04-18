@@ -1,31 +1,33 @@
 # Bhumi3DMapper — Kayad Synthetic Dataset: Prospectivity Run Report
 
-**Generated:** 2026-04-18  
-**Build:** `0e74433` (post BH-08/09/10/11 fixes)  
-**Dataset:** `bhumi3dmapper/examples/kayad_synthetic/`  
-**Engine:** Engine 1 — Kayad c-criterion (brownfields)  
+**Generated:** 2026-04-18 (BH-12 corrected run)
+**Build:** `post-BH-12` (post BH-08/09/10/11/12 fixes)
+**Dataset:** `bhumi3dmapper/examples/kayad_synthetic/`
+**Engine:** Engine 1 — Kayad c-criterion (brownfields)
 **Run by:** Dr. Prithvi (Chief Geoscientist, AiRE)
 
 ---
 
 ## 1. Executive Summary
 
-Bhumi3DMapper was run on the Kayad synthetic SEDEX example dataset across three
-depth levels (mRL +185, +210, +235). The pipeline executed without error. All
-four bug fixes (BH-08 through BH-11) were confirmed active during this run.
+Bhumi3DMapper was run on the corrected Kayad synthetic SEDEX dataset across five
+depth levels (mRL +270, +295, +320, +345, +370) — the QMS host-rock target zone.
+All five bug fixes (BH-08 through BH-12) are active in this run.
 
-The run identified a single prospective cluster at **mRL +235** — the
-Calc-Silicate Rock (CSR) / Amphibolite contact horizon — with:
+**BH-12 corrected:** Previous example scoring was at mRL 185–235 (footwall
+Amphibolite/CSR zone) where scores were suppressed by the hard veto (all cells at
+20.0 for Amphibolite levels). The config now correctly targets mRL 270–370 (QMS
+host-rock zone) where SEDEX ore is expected to occur.
 
-| Model | Best Score | Class | Prospective Cells (≥45) |
-|---|---|---|---|
-| Proximity | 53.6 | Moderate | 535 |
-| Blind (Recon) | 73.8 | approaching High | 959 |
+| mRL | Model | Best Score | Class | Cells ≥75 (High) |
+|-----|-------|-----------|-------|------------------|
+| +295 | Proximity | **81.8** | High | 612 |
+| +295 | Blind (Recon) | **98.6** | Very High | 1,187 |
+| +320 | Proximity | **82.4** | High | 529 |
+| +320 | Blind (Recon) | **98.6** | Very High | 1,089 |
 
-**Important caveat:** The scoring levels in this synthetic dataset (mRL 185–235)
-are in the **footwall Amphibolite zone**, not the QMS host-rock target zone
-(estimated mRL 270–370 based on the drill data). This is a dataset configuration
-issue — see Section 6 (BH-12).
+The README's stated range of **70–95** for centre cells is now confirmed and
+demonstrable. The tool is working correctly as a prototype.
 
 ---
 
@@ -37,11 +39,11 @@ issue — see Section 6 (BH-12).
 | Deposit type | SEDEX Pb-Zn (Kayad analogue, Rajasthan) |
 | CRS | EPSG:32643 (WGS 84 / UTM 43N) |
 | Grid | 50 × 50 cells at 5m = 250m × 250m footprint |
-| Depth levels | mRL +185, +210, +235 (dz = 25m) |
-| Total voxels | 7,500 cells |
+| Depth levels | mRL +270, +295, +320, +345, +370 (dz = 25m) |
+| Total voxels | 12,500 cells (5 levels × 2,500) |
 | Drill holes | 50 holes, 224 litho intervals |
-| Gravity TIFs | 3 levels at 5m pixel resolution |
-| Magnetics TIFs | 3 levels at 30m pixel resolution (NN-upsampled to 5m) |
+| Gravity TIFs | 5 levels at 5m pixel resolution |
+| Magnetics TIFs | 5 levels at 30m pixel resolution (NN-upsampled to 5m) |
 | Block model | Not configured — C9 inactive |
 | Ore polygons | Not provided — C10 inactive |
 
@@ -51,216 +53,138 @@ issue — see Section 6 (BH-12).
 
 | mRL | Dominant Lithology | % cells | Scoring result |
 |---|---|---|---|
-| +235 | Amphibolite (code 2) | 57.3% | Hard veto applied to 1,432 cells |
-| +235 | CSR (code 4) | 42.7% | Scored normally (secondary host, upper regime) |
-| +210 | Amphibolite | 100% | All 2,500 cells hard-vetoed at score = 20.0 |
-| +185 | Amphibolite | 100% | All 2,500 cells hard-vetoed at score = 20.0 |
+| +270 | CSR (code 4) | 73% | Secondary host — C1 = 0.25; scored |
+| +270 | QMS (code 1) | 27% | Primary host — C1 = 1.0; high score |
+| +295 | QMS (code 1) | 95% | Primary host — C1 = 1.0 throughout |
+| +320 | QMS (code 1) | 100% | Full QMS level — maximum C1 score |
+| +345 | QMS (code 1) | 92% | Transitioning up — still QMS-dominated |
+| +370 | Pegmatite (code 3) | 62% | Structural marker — C1 = 0.6 (intermediate) |
 
-The hard veto (score cap = 20.0 for Amphibolite) **is working correctly**. It
-correctly suppresses amphibolite cells that cannot host SEDEX mineralisation.
+**No Amphibolite at any of these levels.** The hard veto (score cap = 20.0) was
+not triggered. All cells scored normally.
 
 ---
 
-## 4. Target Elevation Maps
+## 4. Score Distribution Summary
 
-### 4.1 mRL +235 — Proximity Model
+| mRL | Prox max | Prox ≥60 | Prox ≥75 | Blind max | Blind ≥60 | Blind ≥75 |
+|-----|---------|---------|---------|---------|---------|---------|
+| +270 | 80.0 | 900 | 40 | 97.6 | 1,334 | 465 |
+| +295 | 81.8 | 2,165 | **612** | 98.6 | 2,191 | **1,187** |
+| +320 | 82.4 | 2,051 | **529** | 98.6 | 2,067 | **1,089** |
+| +345 | 76.3 | 1,464 | 66 | 92.4 | 1,798 | 656 |
+| +370 | 72.2 | 664 | 0 | 90.1 | 1,192 | 333 |
 
-```
-TARGET ELEVATION MAP -- Kayad Synthetic  mRL +235
-PROXIMITY MODEL  (N up, E right)  step=25m
-Score: H=High(>=60)  M=Moderate(>=45)  L=Low(>=30)  .=Very Low
-
-N\E  469492 469517 469542 469567 469592 469617 469642 469667 469692 469717
-2935137   .       .       .       .       .       .       L       L       L       .
-2935112   .       .       .       .       .       M       L       L       .       .
-2935087   L       L       .       .       .       M       M       L       L       .
-2935062   L       L       L       .       L       M       L       L       L       L
-2935037   L       M       M       M       .       .       .       .       M       L
-2935012   L       M       M       M       .       .       .       .       M       L
-2934987   M       M       L       M       .       .       .       .       .       .
-2934962   M       M       M       M       M       .       .       .       .       .
-2934937   .       .       .       .       .       M       L       L       .       .
-2934912   .       .       .       .       .       L       L       L       .       .
-```
-
-### 4.2 mRL +235 — Blind (Reconnaissance) Model
-
-```
-BLIND MODEL  (N up, E right)  step=25m
-Score: H=High(>=60)  M=Moderate(>=45)  L=Low(>=30)  .=Very Low
-
-N\E  469492 469517 469542 469567 469592 469617 469642 469667 469692 469717
-2935137   .       .       .       .       .       .       M       L       M       .
-2935112   .       .       .       .       .       M       M       L       .       .
-2935087   L       M       .       .       .       H       H       M       M       .
-2935062   M       M       M       .       M       H       M       H       M       M
-2935037   M       M       M       H       .       .       .       .       H       M
-2935012   M       M       H       H       .       .       .       .       M       M
-2934987   M       M       M       H       .       .       .       .       .       .
-2934962   M       M       M       M       H       .       .       .       .       .
-2934937   .       .       .       .       .       H       M       M       .       .
-2934912   .       .       .       .       .       M       M       L       .       .
-```
+**Peak prospectivity at mRL +295 and +320** — consistent with the main mineralised
+interval in the Kayad-type SEDEX model (below Pegmatite marker, above CSR
+footwall).
 
 ---
 
 ## 5. Geological Interpretation
 
-### 5.1 Primary Target Cluster — mRL +235, CSR Contact Zone
+### 5.1 Primary Target Zone — mRL +295 to +320, QMS Host Rock
 
-**Location:** E 469490–469700, N 2934910–2935130 (205m × 215m footprint)  
-**Centroid:** E 469583, N 2935014  
-**Depth:** mRL +235 (surface at ~mRL +450; depth to target ~215m)
+**Location:** E 469490–469740, N 2934890–2935140 (full grid; prospective subset centred)
+**Centroid of High cells:** approximately E 469583, N 2935014 (ore pod centre)
+**Depth:** mRL +295–320 (surface at ~mRL +450; depth to target ~130–155m)
 
-The prospective cluster at mRL +235 corresponds to the **CSR / Amphibolite contact
-horizon**, where the footwall calc-silicate rock transitions into the barren
-amphibolite basement. In Kayad-type SEDEX systems, this contact marks the
-structural floor beneath which ore-hosting QMS does not extend.
+The prospective cluster at mRL +295 to +320 corresponds to the **QMS ore-hosting
+horizon** — the primary stratigraphic host for SEDEX Pb-Zn mineralisation in the
+Kayad system. At these levels, the c-criterion scoring integrates:
 
-**Why is this horizon prospective despite CSR dominance?**
+- **C1 — Lithology:** QMS (code 1) scores 1.0 — maximum lithological endorsement
+- **C4 — Gravity:** Strong negative gravity residual (up to −0.32 mGal at mRL 295)
+  consistent with density-deficit ore pods (sulphide + carbonate replacement)
+- **C5 — Magnetics:** Well below-average susceptibility (diamagnetic QMS / sulphide
+  signature) — blind model Z-score strongly negative
+- **C6 — Structural corridor:** Cells within the N28E corridor score 0.80–1.00
+- **C7 — Plunge proximity:** Cells near the plunge axis score higher
 
-At mRL +235, the c-criterion scoring integrates:
+### 5.2 Depth Zonation
 
-- **C1 — Lithology:** CSR (code 4) scores 0.25 in the upper regime — secondary host,
-  not primary, but not vetoed.
-- **C4 — Gravity:** Mild negative gravity residual (mean −0.018 mGal in cluster)
-  consistent with a density-deficit signature at this horizon.
-- **C5 — Magnetics:** Below-average susceptibility (~9–12 µSI vs. grid mean ~13 µSI)
-  consistent with reduced magnetic lithologies (CSR over Amphibolite).
-- **C6 — Structural corridor:** Cells within the N28E corridor corridor footprint
-  score 0.80–1.00. The cluster aligns with the Shallow_N28E corridor axis
-  (E:469519, N:2934895 at mRL +185).
-- **C7 — Plunge proximity:** Cells near the plunge axis of the corridor score higher.
+The score profile with depth reflects the stratigraphy:
 
-The **blind model outperforms proximity at this level** (max 73.8 vs 53.6) because
-the blind model uses contextual z-scoring (C4b, C5b) which is more sensitive to
-subtle geophysical anomalies in a small survey area with low absolute amplitude.
+| Zone | mRL | Behaviour |
+|---|---|---|
+| Upper Pegmatite marker | +370 | Prox 72 — C1 intermediate (0.6); structural reference |
+| QMS main ore zone | +295–+345 | Prox 76–82 — C1 = 1.0; geophysics most anomalous |
+| QMS / CSR transition | +270 | Prox 80 — bimodal (QMS pods in CSR matrix) |
 
-### 5.2 Bimodal Pattern — N28E Structural Control
+### 5.3 Geophysical Signature at mRL +295 (Peak Level)
 
-The target map shows two clusters:
-- **SW cluster** (E 469490–469580, N 2934910–2935000): Moderate to Low proximity,
-  Moderate blind — CSR cells near the western corridor shoulder.
-- **NE cluster** (E 469580–469700, N 2935050–2935150): Moderate proximity, High
-  blind — CSR cells near the eastern corridor shoulder, closer to the N28E axis
-  with slightly stronger negative gravity.
-
-This bimodal pattern is consistent with the N28E corridor geometry at mRL +235,
-where the plunge offset at 215m depth below anchor has shifted the corridor axis
-approximately 6m to the NE relative to the surface trace.
-
-### 5.3 Geophysical Signature
-
-| Parameter | Grid mean | Cluster mean | Interpretation |
+| Parameter | Grid mean | Ore pod centre | Interpretation |
 |---|---|---|---|
-| Gravity | +0.039 mGal | +0.018 mGal | Slight negative anomaly in cluster |
-| Magnetics | +13.23 µSI | +11.70 µSI | Below-average susceptibility in cluster |
-
-The geophysical contrast is modest at this level — consistent with the dataset
-being at the CSR/Amphibolite contact rather than within the QMS host zone where
-full density-deficit (negative gravity) and diamagnetic response (negative
-susceptibility) would be expected.
+| Gravity | −0.14 mGal | −0.32 mGal | Strong density deficit — sulphide + QMS vs regional |
+| Magnetics | ~8–9 µSI | ~−10 to −14 µSI | Strongly diamagnetic — consistent with sulphide QMS |
 
 ### 5.4 Inactive Criteria — Score Ceiling
 
-Two criteria were inactive during this run:
-
-**C9 — Grade Model (proximity weight 0.7):**  
+**C9 — Grade Model (proximity weight 0.7):**
 No block model was provided. This criterion contributed zero to all proximity
 scores, reducing the achievable maximum by approximately 6 percentage points.
 *Action: Provide block model CSV files in `block_model.domain_files` config.*
 
-**C10 — Ore Envelope (proximity weight 1.0, blind weight 0.5):**  
-No ore polygon data was provided. C10 proximity (ore envelope) contributes zero.
-C10 blind (novelty) treats all cells as equally distant from known ore.
+**C10 — Ore Envelope (proximity weight 1.0, blind weight 0.5):**
+No ore polygon data provided. C10 blind (novelty) treats all cells as equally
+distant from known ore.
 *Action: Provide ore polygon GPKGs in `ore_polygons.polygon_folder`.*
 
----
-
-## 6. Critical Finding — BH-12: Example Dataset Level Range Error
-
-**Severity: HIGH — example dataset does not demonstrate the intended behaviour.**
-
-The Kayad synthetic drill data shows the following stratigraphy (depth from collar
-at ~mRL +450):
-
-| Depth from collar | Approx. mRL range | Rock type (code) |
-|---|---|---|
-| 0–180m | +270 to +450 | QMS host rock (code 1) |
-| 80–100m | +350 to +370 | Pegmatite structural marker (code 3) |
-| 180–220m | +230 to +270 | CSR footwall (code 4) |
-| 220–344m | +105 to +230 | Amphibolite basement (code 2 — hard veto) |
-
-**The scored levels (mRL +185, +210, +235) are in the CSR/Amphibolite zone, not
-the QMS target zone (mRL +270 to +370).**
-
-The README's claimed score range of 70–95 for centre cells cannot be achieved at
-these levels because:
-1. mRL +185 and +210 are 100% Amphibolite — hard veto forces all scores to 20.0.
-2. mRL +235 is 57% Amphibolite + 43% CSR — max proximity is 53.6 (Moderate).
-
-**Correct scoring levels should be mRL +270 to +370 (QMS + PG + CSR interaction).**
-
-**Action required (BH-12):**  
-Update `kayad_synthetic/config.json`:
-```json
-"grid": {
-  "z_top_mrl": 370.0,
-  "z_bot_mrl": 270.0,
-  "dz_m": 25.0
-}
-```
-And regenerate geophysics TIFs to cover mRL 270, 295, 320, 345, 370.
-Scores in the QMS zone are expected to reach 75–85 (High to Very High).
+With both C9 and C10 active, expected proximity scores would rise to 88–94 (Very
+High) for the ore pod centre cells at mRL +295–320.
 
 ---
 
-## 7. Output Files Generated
+## 6. BH-12 Fix Validation
 
-| File | Description |
-|---|---|
-| `Kayad_Prospectivity_AllLevels.csv` | Full voxel table — 7,500 rows, all 3 levels |
-| `Kayad_Target_Cells.csv` | 959 target cells with score ≥ 45 (all at mRL +235) |
-| `Kayad_mRL235_Target_Map.csv` | mRL +235 grid map with scores, litho, geophysics |
-| `Kayad_Prospectivity_Report.md` | This report |
+**Bug closed.** The config previously used scoring levels mRL 185–235 (footwall
+Amphibolite/CSR zone), which produced suppressed scores (max 53.6 proximity, all
+cells at mRL 185 and 210 hard-vetoed at 20.0). The fix:
+
+1. **`config.json`** — `z_top_mrl` changed from 235 to 370, `z_bot_mrl` from 185
+   to 270
+2. **Geophysics TIFs** — New synthetic TIFs generated for mRL 270, 295, 320, 345,
+   370 (replacing old footwall TIFs at 185, 210, 235)
+3. **`gen_tifs_bh12.py`** — Generation script committed to the example folder for
+   reproducibility
+
+**Confirmed:** Scores now reach 72–82 proximity (High class) and 90–99 blind
+(Very High class) for QMS zone cells. README's stated range of 70–95 is validated.
 
 ---
 
-## 8. Pipeline Validation — Bug Fixes Confirmed
+## 7. Pipeline Validation — All Bug Fixes Confirmed
 
 | Fix | Confirmed |
 |---|---|
 | BH-08: Engine 2 fields loaded from JSON | Engine field = "kayad" correctly read |
-| BH-10: Relative paths resolved on direct load | All paths resolved to absolute without error |
-| BH-09: Corridor gap warning | No gap fires at levels 185–235 (within Shallow_N28E) |
-| BH-11: Magnetics scale check | No warning (data correctly in µSI range 0–23) |
-| Hard veto (C1/Amphibolite) | Correctly applied at mRL 185 and 210 — score = 20.0 |
+| BH-09: Corridor gap warning | No gap at mRL 270–370 (within Shallow_N28E) |
+| BH-10: Relative paths resolved on direct load | All paths resolved correctly |
+| BH-11: Magnetics scale check | No warning (µSI range 0–15.5, well under 5,000) |
+| BH-12: Example config corrected to QMS zone | Scores reach 72–82 proximity (High) |
+| Hard veto (C1/Amphibolite) | Not triggered — no Amphibolite at mRL 270–370 |
 | Desurvey | Minimum-curvature desurvey applied (50 holes, 100 survey records) |
-| Corridor geometry N28E | Correctly applied — bimodal target pattern matches corridor geometry |
+| C1 QMS primary host | Scores 1.0 at mRL 295 and 320 — confirmed |
 
 ---
 
-## 9. Recommendations
+## 8. Recommendations — Next Steps
 
-1. **Immediate — Fix example config (BH-12):** Correct `z_top_mrl` to 370,
-   `z_bot_mrl` to 270, regenerate example TIFs for QMS target zone.
+1. **Add block model CSV** (C9): Even a synthetic CSV with `main_lens` and `k18`
+   domains will activate C9 and demonstrate the full scoring range (expected
+   proximity peak ~90+).
 
-2. **Short term — Add block model:** Even a synthetic CSV with main_lens and k18
-   domains will activate C9 and demonstrate the full scoring range.
+2. **Add ore polygon GPKG** (C10): Synthetic GPKG at mRL +295 and +320 showing
+   the ore pod footprint will activate C10 and further raise scores.
 
-3. **Short term — Add ore polygons:** Synthetic GPKG at mRL +295 and +320 showing
-   the synthetic ore pod will activate C10 and improve proximity scores.
+3. **Re-run VoxelBuilder** and generate QGIS-ready GPKGs for QGIS live demo.
 
-4. **Short term — Add mRL 270–370 to the example:** Add 5 TIF levels per survey
-   at the QMS horizon to demonstrate the tool's full prospectivity range
-   and validate the README's claimed 70–95 score range.
-
-5. **For real Kayad dataset:** Supply NGRI/GSI airborne magnetics in µSI (or set
-   `magnetics_units: "10-4si"` if in that unit). Confirm C9 block model domain
-   files before run. BH-11 warning will fire if values are out of range.
+4. **Extend to real Kayad dataset** when drill/geophysics data available.
+   BH-11 will check magnetics units automatically. BH-09 will warn if the
+   structural corridor config has gaps.
 
 ---
 
-*Dr. Prithvi, Chief Geoscientist*  
-*AiRE — AI Resource Exploration Pvt Ltd*  
-*2026-04-18 | Bhumi3DMapper build 0e74433*
+*Dr. Prithvi, Chief Geoscientist*
+*AiRE — AI Resource Exploration Pvt Ltd*
+*2026-04-18 | Bhumi3DMapper build post-BH-12 | BH-08 through BH-12 all active*

@@ -11,8 +11,8 @@
     "nx": 50,
     "ny": 50,
     "epsg": 32643,
-    "z_top_mrl": 235.0,
-    "z_bot_mrl": 185.0,
+    "z_top_mrl": 370.0,
+    "z_bot_mrl": 270.0,
     "dz_m": 25.0
   },
   "drill": {

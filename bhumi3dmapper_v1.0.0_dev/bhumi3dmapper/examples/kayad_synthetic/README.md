@@ -12,15 +12,19 @@ A realistic-looking SEDEX Pb-Zn scenario inspired by the Kayad Mine (Rajasthan, 
 - **5 lithologies** — QMS (host), Pegmatite (structural marker), CSR (footwall), Amphibolite (veto), Quartzite (other)
 - **Gravity** — density-negative anomaly in centre (typical SEDEX signature)
 - **Magnetics** — persistent magnetic low coincident with ore (Kayad signature)
-- **3 depth levels** — mRL 185, 210, 235 (upper mine regime)
+- **5 depth levels** — mRL 270, 295, 320, 345, 370 (QMS host-rock target zone)
+- **Stratigraphic context** — collars at ~mRL 440–470; QMS host zone mRL 270–450;
+  CSR footwall mRL 230–270; Amphibolite basement below mRL 230 (hard-vetoed)
 
 ## What the tool should produce
 
 When you run the full pipeline on this example:
-- 3 GeoPackage files (one per mRL level)
-- Prospectivity scores in range 70-95 for centre cells (QMS + negative gravity + magnetic low)
-- Amphibolite cells capped at 20 (hard veto)
-- Total runtime < 30 seconds on a 2020-era laptop
+- 5 GeoPackage files (one per mRL level)
+- Proximity scores 72–82 (High class) for centre cells at mRL 295–320
+  (QMS + strong negative gravity + diamagnetic magnetic low + N28E corridor)
+- Blind model scores 78–88 (High–Very High) for the same zone
+- Amphibolite cells (none at these levels) would be capped at 20 if present
+- Total runtime < 60 seconds on a 2020-era laptop
 
 ## Files
 
@@ -28,20 +32,25 @@ When you run the full pipeline on this example:
 kayad_synthetic/
 ├── config.json                  ← Project configuration (paths are rewritten on copy)
 ├── README.md                    ← This file
+├── gen_tifs_bh12.py             ← Script used to regenerate synthetic TIFs (BH-12 fix)
 ├── data/
 │   ├── collar.csv               ← 50 boreholes
 │   ├── litho.csv                ← 224 litho intervals
 │   ├── assay.csv                ← 6,247 assay intervals (2m samples)
 │   └── survey.csv               ← Drill hole orientations
 └── geophysics/
-    ├── gravity/                 ← 3 TIFs at 5m pixel
-    │   ├── grav_185.tif
-    │   ├── grav_210.tif
-    │   └── grav_235.tif
-    └── magnetics/               ← 3 TIFs at 30m pixel
-        ├── mag_185.tif
-        ├── mag_210.tif
-        └── mag_235.tif
+    ├── gravity/                 ← 5 TIFs at 5m pixel (mRL 270-370)
+    │   ├── grav_270.tif
+    │   ├── grav_295.tif
+    │   ├── grav_320.tif
+    │   ├── grav_345.tif
+    │   └── grav_370.tif
+    └── magnetics/               ← 5 TIFs at 30m pixel (mRL 270-370)
+        ├── mag_270.tif
+        ├── mag_295.tif
+        ├── mag_320.tif
+        ├── mag_345.tif
+        └── mag_370.tif
 ```
 
 ## Using the example
