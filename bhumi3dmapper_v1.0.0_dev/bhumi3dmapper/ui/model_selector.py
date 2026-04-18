@@ -355,18 +355,19 @@ class ModelSelectorWidget(QWidget):
             self.model_selected.emit(deposit_type)
 
     def _refresh_coverage(self, deposit_type: str):
-        """Load the deposit model and update the coverage indicator."""
+        """
+        Load the deposit model coverage indicator using the lightweight pre-check
+        function (BH-06). Does not construct a full JsonScoringEngine — avoids
+        schema validation + dataclass build overhead on every row-change event.
+        Full engine construction happens only when the user confirms model selection
+        and initiates scoring.
+        """
         try:
             try:
-                from ..modules.m13_json_scoring_engine import JsonScoringEngine
+                from ..modules.m13_json_scoring_engine import get_coverage_report_for_model
             except ImportError:
-                from modules.m13_json_scoring_engine import JsonScoringEngine
-            engine = JsonScoringEngine(
-                deposit_type,
-                override_low_coverage=True,
-                structural_corridors_defined=self._structural_corridors_defined,
-            )
-            report = engine.coverage_report
+                from modules.m13_json_scoring_engine import get_coverage_report_for_model
+            report = get_coverage_report_for_model(deposit_type)
             self._current_coverage = report
             self._apply_coverage_ui(deposit_type, report)
         except Exception as exc:

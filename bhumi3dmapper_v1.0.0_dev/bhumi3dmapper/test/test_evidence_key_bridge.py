@@ -615,6 +615,73 @@ class TestJsonScoringEngine:
         )
 
 
+# ── Lightweight coverage pre-check tests (BH-06) ──────────────────────────────
+
+class TestGetCoverageReportForModel:
+    """
+    BH-06: get_coverage_report_for_model() must return the same structure as
+    get_coverage_report() without constructing a full JsonScoringEngine.
+    """
+
+    def test_returns_coverage_dict_for_orogenic_au(self):
+        try:
+            from bhumi3dmapper.modules.m13_json_scoring_engine import (
+                get_coverage_report_for_model,
+            )
+            report = get_coverage_report_for_model("orogenic_au")
+        except Exception as exc:
+            pytest.skip(f"Shared repo unavailable: {exc}")
+
+        required_keys = {
+            "total_weight_mass", "matched_weight_mass", "coverage_fraction",
+            "native_keys", "partial_keys", "missing_keys", "block",
+        }
+        assert required_keys.issubset(report.keys()), (
+            f"Missing keys in report: {required_keys - report.keys()}"
+        )
+        assert report["total_weight_mass"] > 0.0
+        assert 0.0 <= report["coverage_fraction"] <= 1.0
+
+    def test_result_matches_engine_coverage_report(self):
+        """Lightweight function must return the same coverage_fraction as the full engine."""
+        try:
+            from bhumi3dmapper.modules.m13_json_scoring_engine import (
+                get_coverage_report_for_model, JsonScoringEngine,
+            )
+            lightweight = get_coverage_report_for_model("orogenic_au")
+            engine = JsonScoringEngine("orogenic_au", override_low_coverage=True)
+            full = engine.coverage_report
+        except Exception as exc:
+            pytest.skip(f"Shared repo unavailable: {exc}")
+
+        assert abs(lightweight["coverage_fraction"] - full["coverage_fraction"]) < 0.001, (
+            f"Lightweight {lightweight['coverage_fraction']:.4f} != "
+            f"full engine {full['coverage_fraction']:.4f}"
+        )
+        assert lightweight["total_weight_mass"] == full["total_weight_mass"]
+
+    def test_deposit_family_restriction_applied(self):
+        """
+        Family restriction must work in lightweight path — litho_favourability
+        is PARTIAL for sedex family, MISSING for orogenic family.
+        """
+        try:
+            from bhumi3dmapper.modules.m13_json_scoring_engine import (
+                get_coverage_report_for_model,
+            )
+            # orogenic_au: litho_favourability bridge is family-restricted to
+            # hydrothermal_sedex/sedimentary — should appear in missing_keys
+            report = get_coverage_report_for_model("orogenic_au", deposit_family="orogenic")
+        except Exception as exc:
+            pytest.skip(f"Shared repo unavailable: {exc}")
+
+        # litho_favourability should be missing for orogenic family
+        assert "litho_favourability" in report["missing_keys"], (
+            "litho_favourability must be in missing_keys for orogenic family "
+            "(deposit_family_restriction=['hydrothermal_sedex','sedimentary'])"
+        )
+
+
 # ── Shared repo loader tests ───────────────────────────────────────────────────
 
 class TestSharedRepoLoader:

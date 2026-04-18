@@ -3,7 +3,7 @@
 **Plugin:** Bhumi3DMapper v2.0  
 **Repository:** AiRE-Geo/Bhumi3Dmapper (GitHub)  
 **Language:** Python 3.x, QGIS Plugin API  
-**Last updated:** 2026-04-17 (post-sprint cleanup — corridors wired, README + SCHEMA_ROADMAP updated)
+**Last updated:** 2026-04-18 (BH-POST-P1 team review sprint — 296 tests, all Dr. Prithvi rulings encoded)
 
 Read this file at the start of every Bhumi development session.
 It records all standing architectural decisions, permanent rules, and pending items.
@@ -124,7 +124,7 @@ Three statuses:
 
 ### Testing
 - **Test-first (Gandalf rule):** for CI gate additions, write the failing test first, observe the failure with exact key list, then add table entries to satisfy it
-- **293 tests passing** (post-sprint, including all 7 brainstorm-complete models)
+- **296 tests passing** (BH-POST-P1, 2026-04-18)
 - **No commits with failing tests** — all new code must have tests before commit
 
 ---
@@ -153,32 +153,31 @@ Three statuses:
 
 ## 7. Pending Items (update as completed)
 
-### BH-REM-P1 completion sprint + post-sprint (all as of 2026-04-17)
-- [x] Gap 1: BRIDGE_TABLE laterite_ni + ni_sulphide coverage (22 new entries) — commit debc3f0
-- [x] Gap 2: depth_extent Option A wiring in `m13_json_scoring_engine.py` — commit 32c9736
-- [x] Gap 3: `ui/model_selector.py` — 4-band coverage indicator — commit 2e0e84a
-- [x] Gap 4: CLAUDE.md session instructions — commit c18aa9c
-- [x] BRIDGE_TABLE graphite_flake coverage (13 new entries) — commit debc3f0 (same as Gap 1)
-- [x] BRIDGE_TABLE graphite_carbonate_hosted, graphite_pelitic_hosted, sedex_pbzn (24 entries) — commit 9829b97
-- [x] `StructuralConfig.corridors_defined()` runtime wiring in `JsonScoringEngine.score_voxel()` — commit (post-sprint)
-- [x] `structural_corridors_defined` parameter wired into `ModelSelectorWidget.__init__` — commit f08f56f
-- [x] SCHEMA_ROADMAP.md Option B section (EvidenceWeight dataclass extension plan) — saved (shared repo, no git)
-- [x] AiRE-DepositModels/README.md "Consumer engines" section — saved (shared repo, no git)
+### All closed through BH-POST-P1 (2026-04-18, commit 8e12d3b)
+- [x] BH-REM-P1 all 4 gaps — commits debc3f0 / 32c9736 / 2e0e84a / c18aa9c
+- [x] BRIDGE_TABLE all 7 brainstorm-complete models — commits debc3f0 / 9829b97
+- [x] corridors_defined() wiring — commits 8a8f59d / f08f56f
+- [x] SCHEMA_ROADMAP Option B + AiRE-DepositModels README — shared repo (no git)
+- [x] Dr. Prithvi: all 4 composite PARTIALs approved — commit 8e12d3b
+- [x] Dr. Prithvi: c8_mag_gradient dual-role ruled — NATIVE→mag_gradient (0.90), PARTIAL→mag_tilt (0.70) — commit 8e12d3b
+- [x] Gandalf BH-04: COMPOSITE_NOT_IMPLEMENTED skip reason — commit 8e12d3b
+- [x] Gandalf BH-05: subsurface_depth_m warning (ticket BH-REM-Px-SURFACE-ELEVATION-WIRE) — commit 8e12d3b
+- [x] DevelopmentHistory_Bhumi3DMapper.md created — commit 8e12d3b
 
-### Dr. Prithvi pending sign-offs (4 composite PARTIALs)
-- [ ] `grav_residual_x_mag_rtp_as` (ni_sulphide, conf=0.85) — prithvi_approved=False
-- [ ] `fault_proximity_x_mag_rtp_as` (ni_sulphide, conf=0.60) — prithvi_approved=False
-- [ ] `fault_proximity_x_litho_favourability` (sedex_pbzn, conf=0.60, family-restricted) — prithvi_approved=False
-- [ ] `fault_proximity_x_grav_residual` (sedex_pbzn, conf=0.60) — prithvi_approved=False
-- [ ] **RULING NEEDED:** c8_mag_gradient dual-role — does it serve as both `mag_tilt` (orogenic_au) and `mag_gradient` (sedex_pbzn/ni_sulphide) simultaneously, or are they distinct inputs requiring two grids?
+### Open — engineering (unblocked)
+- [ ] **BH-06** — Lightweight coverage pre-check: add `get_coverage_report_for_model(deposit_type)` to `m13_json_scoring_engine.py`; update `ModelSelectorWidget._refresh_coverage()` to call it instead of constructing full engine. Lala concern 2.
 
-### CAGE-IN integration (blocked on CAGE-IN session)
-- [ ] File CAGE-IN ticket `JC-TBD-EVIDENCESTACK-EXPORT` — API for exporting CAGE-IN evidence layers (EMIT, ASTER, radiometrics, geochem, LINEAMENT_DENSITY, fault_intersection_density) to Bhumi Engine 2 input format. This closes all MISSING bridge entries that are marked `requires_cage_in_export=True`.
-- [ ] File CAGE-IN ticket `JC-TBD-IP-CHARGEABILITY` — IP chargeability / DCIP survey data stack (sedex_pbzn, ni_sulphide)
+### Open — blocked on CAGE-IN session
+- [ ] **BH-07** — EVIDENCESTACK-EXPORT spec: joint spec between Bhumi (Rose/Hema) and CAGE-IN. Normalised GeoTIFF contract, `{layer_key}.tif` naming, `supplementary_layers` dict in `JsonScoringEngine`. File `JC-TBD-EVIDENCESTACK-EXPORT` in CAGE-IN session simultaneously.
+- [ ] File CAGE-IN ticket `JC-TBD-IP-CHARGEABILITY` — IP chargeability / DCIP survey data (sedex_pbzn, ni_sulphide)
 
-### Phase 3 (coordinate with CAGE-IN — no session date set)
-- [ ] Extend `EvidenceWeight` dataclass (`AiRE-DepositModels/python/deposit_model.py`) with `depth_extent: Optional[DepthExtent]` and `variant_3d_key: Optional[str]` natively. See SCHEMA_ROADMAP.md Option B. Removes `self._raw_weights` workaround from m13.
-- [ ] Enable composite PARTIAL bridge computation in `score_voxel()` — currently synthetic `bhumi_key` composites (e.g., `c4_gravity*c5_magnetics`) are not computed; they produce MISSING. Requires scoring-engine extension after Dr. Prithvi sign-off on all 4 composite PARTIALs.
+### Open — brainstorm sessions required
+- [ ] **Session 6** — IOCG brainstorm (Dr. Prithvi + Dr. Riya + Amit). Produces `iocg.json`. CI gate will auto-flag BRIDGE_TABLE gaps.
+- [ ] **Session 7** — Vein-hosted graphite brainstorm (Dr. Riya addition, 2026-04-18). Bogala-type Sri Lanka graphite — distinct from pelitic and carbonate-hosted models.
+
+### Open — Phase 3 (coordinate with CAGE-IN, no date set)
+- [ ] Extend `EvidenceWeight` dataclass with `depth_extent: Optional[DepthExtent]` and `variant_3d_key: Optional[str]`. See SCHEMA_ROADMAP.md Option B. Removes `_raw_weights` workaround from m13.
+- [ ] Enable composite PARTIAL bridge computation in `score_voxel()` — synthetic `bhumi_key` composites currently produce `COMPOSITE_NOT_IMPLEMENTED`. Activate after BH-07 contract agreed.
 
 ---
 
@@ -199,8 +198,8 @@ git commit -m "docs: add CLAUDE.md session instructions (BH-REM-P1 Gap 4)"
 
 Before starting any new Bhumi development session:
 
-1. `git status` — confirm on `main`, commit `8a8f59d` or later, no uncommitted changes
-2. `python -m pytest bhumi3dmapper/test/ -q` — confirm all tests pass (293 as of 2026-04-17)
+1. `git status` — confirm on `main`, commit `8e12d3b` or later, no uncommitted changes
+2. `python -m pytest bhumi3dmapper/test/ -q` — confirm all tests pass (296 as of 2026-04-18)
 3. Confirm shared repo accessible: `python -c "from bhumi3dmapper.core.shared_repo_loader import get_repo_root; print(get_repo_root())"`
 4. Read pending items section above — check if any Dr. Prithvi sign-offs arrived
 

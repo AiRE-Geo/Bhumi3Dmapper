@@ -209,6 +209,66 @@ def compute_depth_factor(weight_dict: dict, z_mrl: float) -> float:
         return 1.0
 
 
+# ── Lightweight coverage pre-check (BH-06) ────────────────────────────────────
+
+def get_coverage_report_for_model(
+    deposit_type: str,
+    deposit_family: str = "",
+) -> dict:
+    """
+    Return a coverage report for a deposit model without constructing a full
+    JsonScoringEngine. Suitable for UI pre-checks (e.g., ModelSelectorWidget
+    progress bar) where schema validation and dataclass construction overhead
+    is unnecessary.
+
+    Does: manifest lookup → raw JSON parse → weight extraction →
+          get_coverage_report(). No schema validation, no EvidenceWeight
+          dataclass construction, no raw_weights dict build.
+
+    Parameters
+    ----------
+    deposit_type : str
+        Machine identifier matching a model in manifest.json.
+    deposit_family : str, optional
+        Deposit family for deposit_family_restriction enforcement.
+        If empty, resolved from the manifest entry automatically.
+
+    Returns
+    -------
+    dict
+        Same structure as get_coverage_report() from evidence_key_bridge.
+
+    Raises
+    ------
+    SharedRepoNotFoundError
+        If the shared repo or model file cannot be located.
+    """
+    entry = get_model_entry(deposit_type)
+    family = deposit_family or entry.get("family", "")
+
+    raw_model_path = get_repo_root() / "models" / entry["file"]
+    if not raw_model_path.exists():
+        raise SharedRepoNotFoundError(
+            f"Model file not found: {raw_model_path} (deposit_type='{deposit_type}')"
+        )
+
+    with open(raw_model_path, encoding="utf-8") as _fh:
+        raw_model = json.load(_fh)
+
+    # Build minimal weight objects compatible with get_coverage_report().
+    # get_coverage_report() only accesses w.layer_key and w.weight — we use
+    # a lightweight namedtuple rather than the full EvidenceWeight dataclass.
+    from collections import namedtuple
+    _W = namedtuple("_W", ["layer_key", "weight"])
+    weights = [
+        _W(layer_key=w["layer_key"], weight=float(w.get("weight", 0.0)))
+        for w in raw_model.get("weights", [])
+        if "layer_key" in w
+    ]
+
+    return get_coverage_report(weights, deposit_family=family)
+
+
 # ── Main engine ────────────────────────────────────────────────────────────────
 
 class JsonScoringEngine:
