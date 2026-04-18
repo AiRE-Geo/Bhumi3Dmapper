@@ -165,6 +165,13 @@ class DataLoader:
                     arr[np.isclose(arr, nd * scale)] = np.nan
                 else:
                     arr[np.isclose(arr, nodata * scale)] = np.nan
+                # GeoTIFF standard orientation is north-to-south (gt[5] < 0).
+                # The scoring engine expects south-to-north arrays (matching
+                # the cell_N meshgrid ordering in VoxelBuilder).  Flip here so
+                # both orderings are consistent regardless of TIF orientation.
+                gt = ds.GetGeoTransform()
+                if gt[5] < 0:
+                    arr = arr[::-1]
                 ds = None  # close dataset
             elif _TIF_BACKEND == 'rasterio':
                 with rasterio.open(f) as src:
@@ -174,8 +181,19 @@ class DataLoader:
                         arr[np.isclose(arr, nd * scale)] = np.nan
                     else:
                         arr[np.isclose(arr, nodata * scale)] = np.nan
+                    # Same south-to-north normalisation for rasterio backend.
+                    if src.transform.e < 0:
+                        arr = arr[::-1]
             else:  # PIL fallback
-                arr = np.array(Image.open(f), dtype=np.float32) * scale
+                img = Image.open(f)
+                arr = np.array(img, dtype=np.float32) * scale
+                # If the file is a proper GeoTIFF (ModelTiepointTag 34267
+                # present), row 0 is north and we must flip to south-to-north
+                # to match VoxelBuilder cell_N ordering.
+                # Legacy PIL-written TIFs (no tag 34267) are already
+                # south-to-north — no flip needed.
+                if 34267 in getattr(img, 'tag_v2', {}):
+                    arr = arr[::-1]
                 arr[np.isclose(arr, nodata * scale)] = np.nan
 
             grids[mrl] = arr
